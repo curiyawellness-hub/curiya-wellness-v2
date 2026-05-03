@@ -1,0 +1,20 @@
+{
+    "short_name": "Curiya",
+    "name": "Curiya Wellness Patient Portal",
+    "icons": [
+        {
+            "src": "pwa-192x192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "pwa-512x512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#2D5E44",
+    "background_color": "#1F4F37"
+}
