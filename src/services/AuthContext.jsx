@@ -24,10 +24,30 @@ export const AuthProvider = ({ children }) => {
             return false;
         }
 
-        const endpoint = `${import.meta.env.VITE_API_BASE_URL}/fetch-patient`;
-        console.log(`📡 Calling backend: ${endpoint}`);
-
         try {
+            // 1. Cloudflare Worker Authorization (Primary Gate)
+            const decoded = jwtDecode(token);
+            const email = decoded.email;
+            
+            console.log(`🛡️ Verifying Worker access via token...`);
+            const authResponse = await fetch(`https://solitary-frost-385a.curiyawellness.workers.dev/`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const authData = await authResponse.json();
+
+            if (authData.allowed !== true) {
+                if (!isSilent) {
+                    setAccessError("You are not registered as a patient");
+                }
+                return false;
+            }
+
+            // 2. Existing Backend Check
+            const endpoint = `${import.meta.env.VITE_API_BASE_URL}/fetch-patient`;
+            console.log(`📡 Calling backend: ${endpoint}`);
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -80,8 +100,13 @@ export const AuthProvider = ({ children }) => {
             if (savedUser) {
                 try {
                     const parsedUser = JSON.parse(savedUser);
-                    setUser(parsedUser);
-                    await verifyAccess(parsedUser.idToken);
+                    // Verify access BEFORE setting user state to prevent UI flashes
+                    const isAuthorized = await verifyAccess(parsedUser.idToken, true);
+                    if (isAuthorized) {
+                        setUser(parsedUser);
+                    } else {
+                        localStorage.removeItem('curiya_user');
+                    }
                 } catch (error) {
                     console.error('❌ Failed to parse saved user:', error);
                     localStorage.removeItem('curiya_user');

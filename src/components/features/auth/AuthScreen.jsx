@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../../services/AuthContext';
 import logoData from '../../../assets/curiya_logo_new.png';
@@ -6,31 +6,41 @@ import bgTexture from '../../../assets/green_wave_bg.jpg';
 import Card from '../../ui/Card';
 import { AlertCircle, MessageCircle, RefreshCw } from 'lucide-react';
 
-const AuthScreen = ({ error }) => {
+const AuthScreen = ({ error: propError }) => {
     const { login, logout } = useAuth();
+    const [localError, setLocalError] = useState(null);
 
-    const handleGoogleSuccess = (credentialResponse) => {
+    // Combine external context errors and local login errors
+    const displayError = localError || propError;
+
+    const handleGoogleSuccess = async (credentialResponse) => {
         console.log('✓ Google Sign-In Success');
-        console.log('Calling login function...');
+        setLocalError(null);
+        
         try {
-            login(credentialResponse);
+            const user = await login(credentialResponse);
+            
+            // If login succeeds but returns no user, the Worker/Backend denied it
+            if (!user) {
+                setLocalError("Your consultation is not active. Please contact clinic.");
+            }
         } catch (error) {
-            console.error('Error in handleGoogleSuccess:', error);
+            console.error('Login failed:', error);
+            setLocalError("Unable to sign in. Please try again or contact support.");
         }
     };
 
     const handleGoogleError = () => {
-        console.error('✗ Google Sign-In Failed');
-        console.error('User cancelled or Google OAuth error occurred');
+        setLocalError("Google Sign-In was unsuccessful. Please try again.");
     };
 
     const handleWhatsAppHelp = () => {
-        const text = encodeURIComponent('Hi, I am unable to access my account. Please help me.');
+        const text = encodeURIComponent('Hi, I am unable to access my account. My consultation status might be inactive.');
         window.open(`https://wa.me/919632128711?text=${text}`, '_blank');
     };
 
     const handleRetry = () => {
-        logout();
+        setLocalError(null);
     };
 
     return (
@@ -45,7 +55,7 @@ const AuthScreen = ({ error }) => {
             position: 'relative',
             overflow: 'hidden'
         }}>
-            {/* Usual Background Texture */}
+            {/* Background Texture */}
             <div style={{
                 position: 'absolute',
                 top: 0, left: 0, right: 0, bottom: 0,
@@ -55,7 +65,6 @@ const AuthScreen = ({ error }) => {
                 zIndex: 0
             }} />
 
-            {/* Content Overlay */}
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{
                     width: '180px',
@@ -71,8 +80,7 @@ const AuthScreen = ({ error }) => {
                     />
                 </div>
 
-                {error ? (
-                    // Error State
+                {displayError ? (
                     <Card className="glass-card" style={{ maxWidth: '380px', padding: '24px' }}>
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                             <div style={{ 
@@ -95,34 +103,21 @@ const AuthScreen = ({ error }) => {
                                     fontWeight: 600,
                                     fontFamily: 'var(--font-heading)'
                                 }}>
-                                    Access Denied
+                                    Access Restricted
                                 </h3>
                                 <p style={{ 
                                     margin: '4px 0 0 0', 
-                                    fontSize: '0.9rem', 
+                                    fontSize: '0.95rem', 
                                     color: '#B91C1C',
                                     lineHeight: 1.5,
                                     fontWeight: 500
                                 }}>
-                                    {error}
+                                    {displayError}
                                 </p>
                             </div>
                         </div>
 
-                        <div style={{ 
-                            marginBottom: '16px',
-                            padding: '12px',
-                            background: 'rgba(255, 243, 220, 0.45)',
-                            border: '1px solid rgba(217, 119, 6, 0.15)',
-                            borderRadius: '12px',
-                            fontSize: '0.85rem',
-                            color: '#92400e',
-                            lineHeight: 1.5
-                        }}>
-                            This email is not registered for access. Please contact support or try with a different email.
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', gap: '10px', flexDirection: 'column', marginTop: '8px' }}>
                             <button 
                                 onClick={handleRetry}
                                 style={{
@@ -141,10 +136,8 @@ const AuthScreen = ({ error }) => {
                                     gap: '8px',
                                     transition: 'all 0.2s ease'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                             >
-                                <RefreshCw size={16} /> Try Again with Different Email
+                                <RefreshCw size={16} /> Try Again
                             </button>
                             <button 
                                 onClick={handleWhatsAppHelp}
@@ -164,15 +157,12 @@ const AuthScreen = ({ error }) => {
                                     gap: '8px',
                                     transition: 'all 0.2s ease'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 243, 220, 0.6)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 243, 220, 0.45)'}
                             >
-                                <MessageCircle size={16} /> Contact Support
+                                <MessageCircle size={16} /> Contact Clinic Support
                             </button>
                         </div>
                     </Card>
                 ) : (
-                    // Normal Login State
                     <>
                         <Card className="glass-card" style={{ maxWidth: '340px', padding: '32px 24px' }}>
                             <p style={{

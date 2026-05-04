@@ -204,23 +204,23 @@ p {
   - Gradient Top-Down
 */
 .btn-primary {
-  background: linear-gradient(145deg, var(--color-btn-top) 0%, var(--color-btn-bottom) 100%);
-  color: #ffffff;
-  border: none;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  color: var(--color-primary-dark);
+  border: var(--glass-border);
 
   padding: 18px 24px;
   border-radius: 32px;
-  font-weight: 600;
+  font-weight: 700;
   width: 100%;
   font-size: 1.05rem;
   letter-spacing: 0.02em;
 
-  /* Premium Depth Shadow + Glow */
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Premium Depth Shadow */
+  box-shadow: var(--glass-shadow);
 
-  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   display: flex;
   align-items: center;
@@ -229,34 +229,32 @@ p {
   overflow: hidden;
 }
 
-/* Inner Glass Highlight */
+/* Inner Glass Highlight - matching hero-card */
 .btn-primary::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 50%;
+  height: 45%;
   background: linear-gradient(180deg,
-      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.12) 60%,
       rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
+  z-index: 1;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(145deg, var(--color-btn-hover) 0%, var(--color-btn-top) 100%);
+  background: rgba(255, 255, 255, 0.22);
   transform: translateY(-1px);
-  box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.22),
-    0 0 0 1px rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 
 .btn-primary:active {
   transform: scale(0.98);
-  background: linear-gradient(145deg, var(--color-btn-bottom) 0%, var(--color-btn-pressed) 100%);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* Navigation Pill - Stronger Glass */
