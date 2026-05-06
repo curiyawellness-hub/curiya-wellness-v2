@@ -5,6 +5,7 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [patientData, setPatientData] = useState(null);
     const [accessError, setAccessError] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -13,6 +14,7 @@ export const AuthProvider = ({ children }) => {
         // Prevent event objects from being treated as error messages
         const errorMsg = typeof message === 'string' ? message : null;
         setUser(null);
+        setIsAuthenticated(false);
         setPatientData(null);
         setAccessError(errorMsg);
         localStorage.removeItem('curiya_user');
@@ -21,74 +23,39 @@ export const AuthProvider = ({ children }) => {
     const verifyAccess = useCallback(async (token, isSilent = false) => {
         if (!token) {
             console.warn('⚠️ verifyAccess called without token');
+            if (!isSilent) logout();
             return false;
         }
 
         try {
-            // 1. Cloudflare Worker Authorization (Primary Gate)
-            const decoded = jwtDecode(token);
-            const email = decoded.email;
-            
-            console.log(`🛡️ Verifying Worker access via token...`);
+            console.log("🛡️ Verifying access via Worker...");
             const authResponse = await fetch(`https://solitary-frost-385a.curiyawellness.workers.dev/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
+            
             const authData = await authResponse.json();
 
-            if (authData.allowed !== true) {
-                if (!isSilent) {
-                    setAccessError("You are not registered as a patient");
-                }
-                return false;
+            if (!authResponse.ok) {
+                throw new Error("Worker request failed");
             }
 
-            // 2. Existing Backend Check
-            const endpoint = `${import.meta.env.VITE_API_BASE_URL}/fetch-patient`;
-            console.log(`📡 Calling backend: ${endpoint}`);
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${import.meta.env.VITE_AUTHORIZATION_SECRET}`
-                },
-                body: JSON.stringify({ idToken: token })
-            });
-
-            if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
-                    logout('Your session expired. Please log in again.');
-                    return false;
-                }
-
-                let errorMessage = 'Access Denied';
-                try {
-                    const data = await response.json();
-                    errorMessage = data.error || data.message || errorMessage;
-                } catch (e) {
-                    errorMessage = `Server Error (${response.status})`;
-                }
-
-                if (!isSilent || response.status === 404) {
-                    setAccessError(errorMessage);
-                    setPatientData(null);
-                }
-                return false;
+            if (authData.allowed === true) {
+                const workerUser = authData.user || {};
+                setUser(workerUser);
+                setIsAuthenticated(true);
+                setAccessError(null);
+                return workerUser;
+            } else {
+                setUser(null);
+                setIsAuthenticated(false);
+                throw new Error(authData.reason || "Access denied");
             }
-
-            const data = await response.json();
-            setPatientData(data);
-            setAccessError(null);
-            return true;
         } catch (err) {
             console.error('Access verification failed:', err);
             if (!isSilent) {
-                const isNetworkError = err.name === 'TypeError' || err.message.toLowerCase().includes('fetch') || err.message.toLowerCase().includes('network');
-                setAccessError(isNetworkError
-                    ? 'Service temporarily unavailable. Please check your connection.'
-                    : 'System offline. Please try again later.');
+                setAccessError(err.message || 'System offline. Please try again later.');
             }
             return false;
         }
@@ -143,20 +110,26 @@ export const AuthProvider = ({ children }) => {
 
     const login = useCallback(async (credentialResponse) => {
         try {
-            const decoded = jwtDecode(credentialResponse.credential);
+            const idToken = credentialResponse.credential;
+            // Manual decode to handle normalization
+            const payload = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            const email = payload.email?.toLowerCase().trim();
+
             const userData = {
-                email: decoded.email,
-                name: decoded.name,
-                picture: decoded.picture,
-                id: decoded.sub,
-                idToken: credentialResponse.credential
+                email: email,
+                name: payload.name,
+                picture: payload.picture,
+                id: payload.sub,
+                idToken: idToken
             };
 
-            const isAuthorized = await verifyAccess(userData.idToken);
-            if (isAuthorized) {
-                setUser(userData);
-                localStorage.setItem('curiya_user', JSON.stringify(userData));
-                return userData;
+            const workerUser = await verifyAccess(userData.idToken);
+            if (workerUser) {
+                // Ensure we merge the worker's user data with our local idToken for persistence
+                const finalUser = { ...userData, ...workerUser };
+                setUser(finalUser);
+                localStorage.setItem('curiya_user', JSON.stringify(finalUser));
+                return finalUser;
             }
         } catch (error) {
             console.error('✗ LOGIN FAILED:', error);
@@ -184,7 +157,7 @@ export const AuthProvider = ({ children }) => {
             logout,
             getValidToken, // Expose token validation function
             refreshData,
-            isAuthenticated: !!user && !accessError,
+            isAuthenticated,
             isVerifying: loading,
             loading
         }}>

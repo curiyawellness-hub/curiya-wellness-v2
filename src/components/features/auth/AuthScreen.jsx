@@ -39,7 +39,8 @@ const AuthScreen = ({ error: propError }) => {
         window.open(`https://wa.me/919632128711?text=${text}`, '_blank');
     };
 
-    const handleRetry = () => {
+    const handleSignOut = () => {
+        logout();
         setLocalError(null);
     };
 
@@ -119,7 +120,7 @@ const AuthScreen = ({ error: propError }) => {
 
                         <div style={{ display: 'flex', gap: '10px', flexDirection: 'column', marginTop: '8px' }}>
                             <button 
-                                onClick={handleRetry}
+                                onClick={handleSignOut}
                                 style={{
                                     width: '100%',
                                     padding: '12px',
@@ -137,7 +138,7 @@ const AuthScreen = ({ error: propError }) => {
                                     transition: 'all 0.2s ease'
                                 }}
                             >
-                                <RefreshCw size={16} /> Try Again
+                                <RefreshCw size={16} /> Sign in with another account
                             </button>
                             <button 
                                 onClick={handleWhatsAppHelp}
