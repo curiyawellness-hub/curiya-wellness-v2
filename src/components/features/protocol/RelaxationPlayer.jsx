@@ -29,40 +29,57 @@ const EmptyState = ({ onBack }) => (
                 background: 'var(--glass-bg)',
                 backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                 WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-                borderRadius: '24px'
+                border: 'var(--glass-border)',
+                boxShadow: 'var(--glass-shadow)',
+                borderRadius: '24px',
+                position: 'relative',
+                overflow: 'hidden'
             }}>
+                {/* Hero-style inner top highlight */}
                 <div style={{
-                    width: '80px',
-                    height: '80px',
-                    background: 'rgba(27, 67, 50, 0.08)',
-                    border: '1px solid rgba(27, 67, 50, 0.12)',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '24px',
-                    color: '#1B4332'
-                }}>
-                    <Play size={32} style={{ marginLeft: '4px', opacity: 0.6 }} />
+                    pointerEvents: 'none',
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0,
+                    height: '40%',
+                    background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 60%, rgba(255, 255, 255, 0.0) 100%)',
+                    borderRadius: '24px 24px 0 0',
+                    zIndex: 1
+                }} />
+
+                <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                    <div style={{
+                        width: '80px',
+                        height: '80px',
+                        background: 'rgba(27, 67, 50, 0.08)',
+                        border: '1px solid rgba(27, 67, 50, 0.12)',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '24px',
+                        color: '#1B4332'
+                    }}>
+                        <Play size={32} style={{ marginLeft: '4px', opacity: 0.6 }} />
+                    </div>
+                    <h2 style={{ 
+                        fontFamily: 'var(--font-heading)', 
+                        color: '#1B4332', 
+                        marginBottom: '12px', 
+                        fontWeight: 600,
+                        fontSize: '1.25rem' 
+                    }}>No audio sessions available</h2>
+                    <p style={{ 
+                        fontFamily: 'var(--font-body)', 
+                        color: '#2D5E44', 
+                        opacity: 0.7, 
+                        maxWidth: '260px', 
+                        lineHeight: 1.6, 
+                        fontSize: '0.95rem',
+                        fontWeight: 400
+                    }}>
+                        We couldn't load any relaxation tracks right now. Please check back later.
+                    </p>
                 </div>
-                <h2 style={{ 
-                    fontFamily: 'var(--font-heading)', 
-                    color: '#1B4332', 
-                    marginBottom: '12px', 
-                    fontWeight: 600,
-                    fontSize: '1.25rem' 
-                }}>No audio sessions available</h2>
-                <p style={{ 
-                    fontFamily: 'var(--font-body)', 
-                    color: '#2D5E44', 
-                    opacity: 0.7, 
-                    maxWidth: '260px', 
-                    lineHeight: 1.6, 
-                    fontSize: '0.95rem',
-                    fontWeight: 400
-                }}>
-                    We couldn't load any relaxation tracks right now. Please check back later.
-                </p>
             </Card>
         </div>
     </div>
@@ -196,17 +213,30 @@ const RelaxationPlayer = ({ onBack, mockPlaylist = null }) => {
                     background: 'var(--glass-bg)',
                     backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
+                    border: 'var(--glass-border)',
+                    boxShadow: 'var(--glass-shadow)',
                     borderRadius: '24px'
                 }}>
+                    {/* Hero-style inner top highlight */}
+                    <div style={{
+                        pointerEvents: 'none',
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0,
+                        height: '40%',
+                        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 60%, rgba(255, 255, 255, 0.0) 100%)',
+                        borderRadius: '24px 24px 0 0',
+                        zIndex: 1
+                    }} />
+
                     {isActuallyLoading ? (
-                        <div style={{ width: '100%', padding: '20px' }}>
+                        <div style={{ width: '100%', padding: '20px', position: 'relative', zIndex: 2 }}>
                             <GlobalShimmer type="greeting" style={{ height: '220px', borderRadius: '30px', margin: '0 auto 20px' }} />
                             <GlobalShimmer type="row" count={1} style={{ width: '60%', margin: '0 auto 8px' }} />
                             <GlobalShimmer type="row" count={1} style={{ width: '40%', margin: '0 auto 20px' }} />
                             <GlobalShimmer type="card" count={2} />
                         </div>
                     ) : (
-                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2 }}>
                             {/* Wave Visualizer */}
                             <WaveVisualizer isPlaying={isThisTrackPlaying} />
 

@@ -90,10 +90,6 @@ const Prescription = ({ onBack }) => {
     useEffect(() => {
         performFetch();
 
-        const interval = setInterval(() => {
-            performFetch(true);
-        }, 15000);
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 performFetch(true);
@@ -102,7 +98,6 @@ const Prescription = ({ onBack }) => {
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [patientData, patientId, user?.idToken]);
@@ -122,7 +117,7 @@ const Prescription = ({ onBack }) => {
                         setIsPolling(false);
                     }
                 }
-            }, 4000);
+            }, 10000);
         } else if (pollOutcome === 'success') {
             pollTimer = setInterval(() => {
                 performFetch(true);

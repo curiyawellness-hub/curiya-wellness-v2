@@ -87,12 +87,6 @@ const LabReports = ({ onBack }) => {
 
         fetchReports();
 
-        const interval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
-                fetchReports(true);
-            }
-        }, 15000);
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 fetchReports(true);
@@ -102,7 +96,6 @@ const LabReports = ({ onBack }) => {
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
             cancelled = true;
-            clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [identity.email, identity.patientId, view]);

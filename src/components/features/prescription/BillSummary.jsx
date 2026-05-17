@@ -50,10 +50,6 @@ const BillSummary = ({
             position: 'relative',
             overflow: 'hidden'
         }}>
-            {/* Decorative background effects matching HeroBanner */}
-            <div style={{ position: 'absolute', width: '200px', height: '200px', top: '-60px', right: '-60px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', width: '130px', height: '130px', top: '-15px', right: '-15px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.06)', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', width: '80px', height: '80px', bottom: '-15px', left: '-15px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)', pointerEvents: 'none' }} />
 
             <div style={{ position: 'relative', zIndex: 2 }}>
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 600, color: '#1B4332', marginBottom: '16px', marginTop: 0 }}>Bill Summary</h2>

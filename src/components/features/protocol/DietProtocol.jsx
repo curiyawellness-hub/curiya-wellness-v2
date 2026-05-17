@@ -55,12 +55,6 @@ const DietProtocol = ({ onBack }) => {
     useEffect(() => {
         fetchDietData();
 
-        const interval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
-                fetchDietData(true);
-            }
-        }, 15000);
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 fetchDietData(true);
@@ -69,7 +63,6 @@ const DietProtocol = ({ onBack }) => {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
-            clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [patientData, patientId, user?.idToken]);

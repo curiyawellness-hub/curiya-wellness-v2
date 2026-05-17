@@ -210,7 +210,6 @@ export const AuthProvider = ({ children }) => {
             });
         };
 
-        const interval = setInterval(refreshLivePatientData, PATIENT_REFRESH_INTERVAL_MS);
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 refreshLivePatientData();
@@ -219,7 +218,6 @@ export const AuthProvider = ({ children }) => {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
-            clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [isAuthenticated, refreshData, user?.idToken]);
