@@ -1,4 +1,4 @@
-const CACHE_NAME = 'curiya-wellness-v1';
+const CACHE_NAME = 'curiya-wellness-v2';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',

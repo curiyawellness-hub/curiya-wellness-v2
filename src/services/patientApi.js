@@ -346,3 +346,48 @@ export const selectScopedPatientRecord = (payload, identity) => {
 
     return null;
 };
+
+/**
+ * Fetches order tracking data from n8n backend for a paid prescription.
+ */
+export const getTrackingDetails = async (idToken, patientId) => {
+    if (!idToken || !patientId) {
+        throw new Error('User token or patient ID missing');
+    }
+
+    const url = `${N8N_WEBHOOK_BASE}/get-tracking`;
+    
+    console.log(`Trying webhook candidate: POST ${url}`);
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            ...getInternalAuthHeaders(),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            idToken,
+            patientId
+        })
+    });
+
+    if (response.status === 401) {
+        throw new Error('UNAUTHORIZED');
+    }
+    if (response.status === 403) {
+        throw new Error('FORBIDDEN');
+    }
+    if (response.status === 404) {
+        throw new Error('NOT_FOUND');
+    }
+
+    if (!response.ok) {
+        throw new Error(`SERVER_ERROR:${response.status}`);
+    }
+
+    const text = await response.text();
+    return parseJsonSafely(text);
+};
+
+export const fetchOrderTracking = async (authContext) => {
+    return getTrackingDetails(authContext.user?.idToken, authContext.patientId);
+};

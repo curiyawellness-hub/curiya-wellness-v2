@@ -52,74 +52,78 @@ const BillSummary = ({
         }}>
 
             <div style={{ position: 'relative', zIndex: 2 }}>
-                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 600, color: '#1B4332', marginBottom: '16px', marginTop: 0 }}>Bill Summary</h2>
-                <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.1)', color: 'var(--color-text-secondary)' }}>
-                                <th style={{ padding: '8px 0', fontWeight: 500 }}>Supplement</th>
-                                <th style={{ padding: '8px 0', fontWeight: 500 }}>Pack</th>
-                                <th style={{ padding: '8px 0', fontWeight: 500, textAlign: 'right' }}>Amt</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {billing?.items?.map((item, idx) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                                    <td style={{ padding: '12px 0' }}>
-                                        <span style={{ display: 'block', fontWeight: 600, color: '#1B4332' }}>{item.name}</span>
-                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-heading)' }}>x{item.qty}</span>
-                                    </td>
-                                    <td style={{ padding: '12px 0', color: '#40916C' }}>{item.pack}</td>
-                                    <td style={{ padding: '12px 0', textAlign: 'right', color: '#1B4332', fontWeight: 500, fontFamily: 'var(--font-heading)' }}>₹{item.amount}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                {pollOutcome !== 'success' && (
+                    <>
+                        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 600, color: '#1B4332', marginBottom: '16px', marginTop: 0 }}>Bill Summary</h2>
+                        <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.1)', color: 'var(--color-text-secondary)' }}>
+                                        <th style={{ padding: '8px 0', fontWeight: 500 }}>Supplement</th>
+                                        <th style={{ padding: '8px 0', fontWeight: 500 }}>Pack</th>
+                                        <th style={{ padding: '8px 0', fontWeight: 500, textAlign: 'right' }}>Amt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {billing?.items?.map((item, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                                            <td style={{ padding: '12px 0' }}>
+                                                <span style={{ display: 'block', fontWeight: 600, color: '#1B4332' }}>{item.name}</span>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-heading)' }}>x{item.qty}</span>
+                                            </td>
+                                            <td style={{ padding: '12px 0', color: '#40916C' }}>{item.pack}</td>
+                                            <td style={{ padding: '12px 0', textAlign: 'right', color: '#1B4332', fontWeight: 500, fontFamily: 'var(--font-heading)' }}>₹{item.amount}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                    <span>Subtotal</span>
-                    <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.subtotal}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                    <span>Courier Charges</span>
-                    <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.courier}</span>
-                </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                            <span>Subtotal</span>
+                            <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.subtotal}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                            <span>Courier Charges</span>
+                            <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.courier}</span>
+                        </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '1.2rem', fontWeight: 600, color: 'var(--color-primary)' }}>
-                    <span>Total Payable</span>
-                    <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.total}</span>
-                </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '1.2rem', fontWeight: 600, color: 'var(--color-primary)' }}>
+                            <span>Total Payable</span>
+                            <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.total}</span>
+                        </div>
 
-                {!isPaid && (payment?.link || isActionable) && (
-                    <Button
-                        variant="primary"
-                        onClick={handlePaymentClick}
-                        style={{
-                            width: '100%',
-                            padding: '16px',
-                            fontSize: '15px',
-                            fontWeight: 700,
-                            boxShadow: '0 8px 25px rgba(27, 67, 50, 0.25)'
-                        }}
-                    >
-                        Pay <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.total || billing?.total_payable || '0'}</span> Securely
-                    </Button>
-                )}
-
-                {isPaid && (
-                    <div style={{ textAlign: 'center' }}>
-                        <Badge type="primary">Paid Successfully</Badge>
-                        {trackingId ? (
-                            <p style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer' }}>
-                                Track Shipment: {trackingId}
-                            </p>
-                        ) : (
-                            <p style={{ marginTop: '12px', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                Dispatch in progress...
-                            </p>
+                        {!isPaid && (payment?.link || isActionable) && (
+                            <Button
+                                variant="primary"
+                                onClick={handlePaymentClick}
+                                style={{
+                                    width: '100%',
+                                    padding: '16px',
+                                    fontSize: '15px',
+                                    fontWeight: 700,
+                                    boxShadow: '0 8px 25px rgba(27, 67, 50, 0.25)'
+                                }}
+                            >
+                                Pay <span style={{ fontFamily: 'var(--font-heading)' }}>₹{billing?.total || billing?.total_payable || '0'}</span> Securely
+                            </Button>
                         )}
-                    </div>
+
+                        {isPaid && (
+                            <div style={{ textAlign: 'center' }}>
+                                <Badge type="primary">Paid Successfully</Badge>
+                                {trackingId ? (
+                                    <p style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer' }}>
+                                        Track Shipment: {trackingId}
+                                    </p>
+                                ) : (
+                                    <p style={{ marginTop: '12px', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                        Dispatch in progress...
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </>
                 )}
             
             {/* Outcome 2: FAILED */}
@@ -318,9 +322,9 @@ const BillSummary = ({
 
             {/* Mimic Buttons for Testing */}
             <div style={{
-                marginTop: '32px',
-                paddingTop: '16px',
-                borderTop: '1px dashed rgba(27, 67, 50, 0.15)',
+                marginTop: pollOutcome === 'success' ? '0' : '32px',
+                paddingTop: pollOutcome === 'success' ? '0' : '16px',
+                borderTop: pollOutcome === 'success' ? 'none' : '1px dashed rgba(27, 67, 50, 0.15)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px'

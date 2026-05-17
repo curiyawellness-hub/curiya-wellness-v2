@@ -30,6 +30,7 @@ const Prescription = ({ onBack }) => {
     const [isPolling, setIsPolling] = useState(false);
     const [pollOutcome, setPollOutcome] = useState(null);
     const [pollingStartTime, setPollingStartTime] = useState(null);
+    const [dispatchedTrigger, setDispatchedTrigger] = useState(0);
 
     useEffect(() => {
         setIsVisible(true);
@@ -148,8 +149,16 @@ const Prescription = ({ onBack }) => {
     };
 
     const handleSimulateOutcome = (outcome) => {
+        if (outcome === 'dispatched') {
+            setIsSimulated(false);
+            setPollOutcome('success');
+            setIsPolling(false);
+            setDispatchedTrigger(prev => prev + 1);
+            return;
+        }
+
         setIsSimulated(true);
-        setPollOutcome(outcome === 'dispatched' ? 'success' : outcome);
+        setPollOutcome(outcome);
         setIsPolling(false);
         
         if (outcome === 'success') {
@@ -157,14 +166,6 @@ const Prescription = ({ onBack }) => {
                 ...prev, 
                 status: 'Meds pending', 
                 tracking_id: null,
-                payment: prev?.payment ? { ...prev.payment, status: 'PAID' } : { status: 'PAID' }
-            }));
-        } else if (outcome === 'dispatched') {
-            setLocalPatientData(prev => ({ 
-                ...prev, 
-                status: 'Meds Sent', 
-                tracking_id: 'CURI-7892341',
-                courier_name: 'BlueDart Express',
                 payment: prev?.payment ? { ...prev.payment, status: 'PAID' } : { status: 'PAID' }
             }));
         } else if (outcome === 'failed') {
@@ -287,7 +288,11 @@ const Prescription = ({ onBack }) => {
 
             {/* Show Order Status if payment is successful/processed */}
             {pollOutcome === 'success' && (
-                <OrderStatus patientData={localPatientData} />
+                <OrderStatus 
+                    patientData={localPatientData} 
+                    isSimulated={isSimulated}
+                    dispatchedTrigger={dispatchedTrigger}
+                />
             )}
 
             {/* Always show Bill Summary if billing data exists, regardless of payment status */}
