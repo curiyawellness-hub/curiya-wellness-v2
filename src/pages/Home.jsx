@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import GreetingCard from '../components/features/home/GreetingCard';
 import ConsultationInfo from '../components/features/home/ConsultationInfo';
 import ContactModal from '../components/features/home/ContactModal';
-import Button from '../components/ui/Button';
-import { patient as initialPatient } from '../data/mockData';
 import { MessageCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import GlobalShimmer from '../components/ui/GlobalShimmer';
 import QueryBanner from '../components/ui/QueryBanner';
 import '../components/ui/shimmer.css';
 
+const pickFirst = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
+
 const Home = () => {
-    const { user, patientData, refreshData, loading, accessError } = useAuth();
+    const { user, patientData, patientId, refreshData, loading, patientLoading, accessError } = useAuth();
     const isFetching = useRef(false);
     const [isContactOpen, setIsContactOpen] = useState(false);
     const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -35,9 +35,7 @@ const Home = () => {
         };
 
         performRefresh(true); // Silent refresh on mount
-
-        const interval = setInterval(() => performRefresh(true), 60000);
-        return () => clearInterval(interval);
+        // Note: Global refresh is handled by AuthContext interval
     }, [user?.idToken, refreshData]);
 
     const handleManualRefresh = async () => {
@@ -50,21 +48,68 @@ const Home = () => {
         }
     };
 
-    // Correctly resolve data with initialPatient as fallback for the WHOLE object
-    const activeData = patientData || initialPatient;
-    
+    const activeData = patientData || {};
+
     const currentPatient = {
-        id: activeData?.patient_id || activeData?.id,
-        name: activeData?.name || user?.name || 'Wellness Guest',
-        doctor: activeData?.doctor || 'Consultant Assigned',
-        chiefComplaint: activeData?.complaint || activeData?.["Chief Complaint"] || activeData?.chiefComplaint || 'Consultation Pending',
-        consultDate: activeData?.consultDate || activeData?.["Consultation Date"] || '--/--/--',
-        followUpDate: activeData?.followUp || activeData?.["Follow-up Date"] || activeData?.followUpDate || '--/--/--',
-        status: activeData?.status || 'Processing',
-        quote: activeData?.quote || "Healing is a journey, not a destination."
+        id: pickFirst(
+            activeData?.patient_id,
+            activeData?.patientId,
+            activeData?.['Patient ID'],
+            activeData?.id,
+            patientId
+        ),
+        name: pickFirst(
+            activeData?.name,
+            activeData?.Name,
+            user?.name,
+            'Wellness Guest'
+        ),
+        doctor: pickFirst(
+            activeData?.doctor,
+            activeData?.handled_by,
+            activeData?.['Handled by'],
+            'Consultant Assigned'
+        ),
+        chiefComplaint: pickFirst(
+            activeData?.chief_complaint,
+            activeData?.complaint,
+            activeData?.['Chief Complaint'],
+            activeData?.['C/o'],
+            'Consultation Pending'
+        ),
+        consultDate: pickFirst(
+            activeData?.consult_date,
+            activeData?.consultDate,
+            activeData?.Date,
+            '--/--/--'
+        ),
+        followUpDate: pickFirst(
+            activeData?.follow_up_date,
+            activeData?.followUp,
+            activeData?.['Follow-up'],
+            '--/--/--'
+        ),
+        status: pickFirst(
+            activeData?.status,
+            activeData?.Status,
+            'Processing'
+        ),
+        quote: pickFirst(
+            activeData?.quote,
+            "Healing is a journey, not a destination."
+        )
     };
 
     if (!user) return null;
+
+    if ((loading || patientLoading) && !patientData) {
+        return (
+            <div style={{ paddingBottom: '20px' }}>
+                <GlobalShimmer type="greeting" style={{ marginBottom: '16px' }} />
+                <GlobalShimmer type="card" count={2} />
+            </div>
+        );
+    }
 
     return (
         <div style={{ paddingBottom: '20px' }}>

@@ -99,9 +99,6 @@ const ReportList = ({ reports = [], isLoading, fetchError, onSelect, onUpload, o
     // ── Upload Info Card (like "Follow for 2 Weeks") ──────────────────────
     const UploadCard = () => (
         <div style={{ ...heroCardStyle, padding: '18px 20px', marginBottom: '16px' }}>
-            <div style={{ position: 'absolute', width: '180px', height: '180px', top: '-65px', right: '-60px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)' }} />
-            <div style={{ position: 'absolute', width: '110px', height: '110px', top: '-20px', right: '-15px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.06)' }} />
-            <div style={{ position: 'absolute', width: '70px', height: '70px', bottom: '-20px', left: '-18px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <div style={{
                     width: '38px', height: '38px', borderRadius: '13px',
@@ -212,11 +209,7 @@ const ReportList = ({ reports = [], isLoading, fetchError, onSelect, onUpload, o
                                 alignItems: 'center', gap: '14px', padding: '15px 16px',
                             }}
                         >
-                            {/* Decorative circles to match hero banner */}
-                            <div style={{ position: 'absolute', width: '120px', height: '120px', top: '-40px', right: '-30px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.06)', pointerEvents: 'none' }} />
-                            <div style={{ position: 'absolute', width: '60px', height: '60px', bottom: '-20px', left: '-10px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.06)', pointerEvents: 'none' }} />
-                            
-                            {/* Content layer (ensure above circles) */}
+                            {/* Content layer */}
                             <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
                                 {/* File Icon */}
                                 <div style={{
@@ -273,10 +266,6 @@ const ReportList = ({ reports = [], isLoading, fetchError, onSelect, onUpload, o
                     className="action-card hero-card"
                     style={{ ...heroCardStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px', padding: '15px 16px' }}
                 >
-                    {/* Decorative circles */}
-                    <div style={{ position: 'absolute', width: '100px', height: '100px', top: '-30px', right: '-20px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.05)', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', width: '50px', height: '50px', bottom: '-15px', left: '-10px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.05)', pointerEvents: 'none' }} />
-
                     <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
                         <div style={{
                             width: '48px', height: '48px', borderRadius: '16px',

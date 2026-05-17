@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import {
+    fetchFromWebhook,
+    resolvePatientIdentity,
+    selectScopedPatientRecord
+} from './patientApi';
 
 const AuthContext = createContext(null);
+const PATIENT_REFRESH_INTERVAL_MS = 15000;
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -9,15 +15,55 @@ export const AuthProvider = ({ children }) => {
     const [patientData, setPatientData] = useState(null);
     const [accessError, setAccessError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [patientLoading, setPatientLoading] = useState(false);
 
     const logout = useCallback((message) => {
-        // Prevent event objects from being treated as error messages
         const errorMsg = typeof message === 'string' ? message : null;
         setUser(null);
         setIsAuthenticated(false);
         setPatientData(null);
+        setPatientLoading(false);
         setAccessError(errorMsg);
         localStorage.removeItem('curiya_user');
+    }, []);
+
+    const fetchPatientData = useCallback(async (authenticatedUser, isSilent = false) => {
+        if (!authenticatedUser?.email) return null;
+
+        if (!isSilent) {
+            setPatientLoading(true);
+        }
+
+        try {
+            const identity = resolvePatientIdentity(authenticatedUser);
+            identity.idToken = authenticatedUser.idToken;
+
+            const payload = await fetchFromWebhook('fetch-patient', {
+                method: 'POST',
+                identity
+            });
+
+            if (payload) {
+                const record = selectScopedPatientRecord(payload, identity);
+                if (record) {
+                    setPatientData(record);
+                    setAccessError(null);
+                    return record;
+                } else {
+                    console.warn('Patient identity resolved but no record found in payload');
+                    setPatientData(null);
+                }
+            }
+            return null;
+        } catch (err) {
+            console.error('Patient data fetch failed:', err);
+            if (!isSilent) {
+                setAccessError(err.message || 'Unable to load patient data.');
+            }
+            throw err;
+        } finally {
+            setPatientLoading(false);
+        }
     }, []);
 
     const verifyAccess = useCallback(async (token, isSilent = false) => {
@@ -28,7 +74,6 @@ export const AuthProvider = ({ children }) => {
         }
 
         try {
-            console.log("🛡️ Verifying access via Worker...");
             const authResponse = await fetch(`https://solitary-frost-385a.curiyawellness.workers.dev/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -61,29 +106,6 @@ export const AuthProvider = ({ children }) => {
         }
     }, [logout]);
 
-    useEffect(() => {
-        const checkSession = async () => {
-            const savedUser = localStorage.getItem('curiya_user');
-            if (savedUser) {
-                try {
-                    const parsedUser = JSON.parse(savedUser);
-                    // Verify access BEFORE setting user state to prevent UI flashes
-                    const isAuthorized = await verifyAccess(parsedUser.idToken, true);
-                    if (isAuthorized) {
-                        setUser(parsedUser);
-                    } else {
-                        localStorage.removeItem('curiya_user');
-                    }
-                } catch (error) {
-                    console.error('❌ Failed to parse saved user:', error);
-                    localStorage.removeItem('curiya_user');
-                }
-            }
-            setLoading(false);
-        };
-        checkSession();
-    }, [verifyAccess]);
-
     const getValidToken = useCallback(async () => {
         if (!user?.idToken) {
             throw new Error('No user session found. Please log in.');
@@ -111,7 +133,6 @@ export const AuthProvider = ({ children }) => {
     const login = useCallback(async (credentialResponse) => {
         try {
             const idToken = credentialResponse.credential;
-            // Manual decode to handle normalization
             const payload = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
             const email = payload.email?.toLowerCase().trim();
 
@@ -125,42 +146,105 @@ export const AuthProvider = ({ children }) => {
 
             const workerUser = await verifyAccess(userData.idToken);
             if (workerUser) {
-                // Ensure we merge the worker's user data with our local idToken for persistence
                 const finalUser = { ...userData, ...workerUser };
                 setUser(finalUser);
                 localStorage.setItem('curiya_user', JSON.stringify(finalUser));
+                await fetchPatientData(finalUser);
                 return finalUser;
             }
         } catch (error) {
             console.error('✗ LOGIN FAILED:', error);
             throw error;
         }
-    }, [verifyAccess]);
+    }, [fetchPatientData, verifyAccess]);
 
     const refreshData = useCallback(async (isSilent) => {
         try {
             const validToken = await getValidToken();
-            return verifyAccess(validToken, isSilent);
+            const workerUser = await verifyAccess(validToken, isSilent);
+            if (!workerUser) {
+                return false;
+            }
+
+            const refreshedUser = { ...user, ...workerUser, idToken: validToken };
+            setUser(refreshedUser);
+            localStorage.setItem('curiya_user', JSON.stringify(refreshedUser));
+            return fetchPatientData(refreshedUser, isSilent);
         } catch (e) {
             console.error('Refresh failed:', e);
             return false;
         }
-    }, [getValidToken, verifyAccess]);
+    }, [fetchPatientData, getValidToken, user, verifyAccess]);
+
+    useEffect(() => {
+        const checkSession = async () => {
+            const savedUser = localStorage.getItem('curiya_user');
+            if (savedUser) {
+                try {
+                    const parsedUser = JSON.parse(savedUser);
+                    const workerUser = await verifyAccess(parsedUser.idToken, true);
+                    if (workerUser) {
+                        const mergedUser = { ...parsedUser, ...workerUser, idToken: parsedUser.idToken };
+                        setUser(mergedUser);
+                        await fetchPatientData(mergedUser, true);
+                    } else {
+                        localStorage.removeItem('curiya_user');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to parse saved user:', error);
+                    localStorage.removeItem('curiya_user');
+                }
+            }
+            setLoading(false);
+        };
+        checkSession();
+    }, [fetchPatientData, verifyAccess]);
+
+    useEffect(() => {
+        if (!isAuthenticated || !user?.idToken) return undefined;
+
+        const refreshLivePatientData = () => {
+            if (document.visibilityState === 'hidden') return;
+            refreshData(true).catch((error) => {
+                console.error('Silent patient refresh failed:', error);
+            });
+        };
+
+        const interval = setInterval(refreshLivePatientData, PATIENT_REFRESH_INTERVAL_MS);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refreshLivePatientData();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [isAuthenticated, refreshData, user?.idToken]);
+
+    const authValue = React.useMemo(() => ({
+        user,
+        patientData,
+        patientId: resolvePatientIdentity(patientData, user).patientId,
+        accessError,
+        login,
+        logout,
+        getValidToken,
+        refreshData,
+        fetchPatientData,
+        isAuthenticated,
+        isVerifying: loading,
+        patientLoading,
+        loading
+    }), [
+        user, patientData, accessError, login, logout, getValidToken, 
+        refreshData, fetchPatientData, isAuthenticated, loading, patientLoading
+    ]);
 
     return (
-        <AuthContext.Provider value={{
-            user,
-            patientData,
-            patientId: patientData?.patient_id, // Explicitly expose patientId
-            accessError,
-            login,
-            logout,
-            getValidToken, // Expose token validation function
-            refreshData,
-            isAuthenticated,
-            isVerifying: loading,
-            loading
-        }}>
+        <AuthContext.Provider value={authValue}>
             {children}
         </AuthContext.Provider>
     );

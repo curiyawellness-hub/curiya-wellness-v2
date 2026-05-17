@@ -3,6 +3,12 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { MapPin, Phone, User, Save, Loader2 } from 'lucide-react';
 import { useAuth } from '../../../services/AuthContext';
+import {
+    buildPatientScopedBody,
+    buildPatientScopedCandidateUrls,
+    getInternalAuthHeaders,
+    resolvePatientIdentity
+} from '../../../services/patientApi';
 
 const InputField = ({ label, icon: Icon, ...props }) => (
     <div style={{ marginBottom: '20px' }}>
@@ -56,7 +62,7 @@ const InputField = ({ label, icon: Icon, ...props }) => (
 );
 
 const AddressForm = ({ onSave, initialData = {} }) => {
-    const { user, patientId, refreshData } = useAuth();
+    const { user, patientData, patientId, refreshData } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
     const [showSuccess, setShowSuccess] = useState(false);
@@ -75,29 +81,44 @@ const AddressForm = ({ onSave, initialData = {} }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!formData.fullName || !formData.phone || !formData.address || !formData.state || !formData.pincode) {
+            setSubmitError("Please fill out all mandatory fields before saving.");
+            return;
+        }
+
         setIsSubmitting(true);
         setSubmitError(null);
 
         try {
-            const body = {
+            const identity = resolvePatientIdentity(patientData, user, { patient_id: patientId });
+            const body = buildPatientScopedBody(identity, {
                 idToken: user?.idToken, // For verification
-                patient_id: patientId,   // MANDATORY: Use internal ID
                 delivery_name: formData.fullName,
                 delivery_phone: formData.phone,
                 delivery_address: formData.address,
                 delivery_state: formData.state,
                 delivery_pincode: formData.pincode,
                 delivery_updated: true
-            };
-
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/update-delivery`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${import.meta.env.VITE_AUTHORIZATION_SECRET}`
-                },
-                body: JSON.stringify(body)
             });
+            console.log('authenticatedUser', user);
+            console.log('fetch webhook URL candidates', buildPatientScopedCandidateUrls('update-delivery', identity));
+
+            let response = null;
+            for (const requestUrl of buildPatientScopedCandidateUrls('update-delivery', identity)) {
+                response = await fetch(requestUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getInternalAuthHeaders()
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok || (response.status !== 404 && response.status !== 405)) {
+                    break;
+                }
+            }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -105,6 +126,7 @@ const AddressForm = ({ onSave, initialData = {} }) => {
             }
 
             const result = await response.json().catch(() => ({}));
+            console.log('patient response', result);
             // Webhook update-delivery success
 
             // Give the backend more time to persist the changes in Notion before re-fetching

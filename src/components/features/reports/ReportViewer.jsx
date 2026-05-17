@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, Eye, Download } from 'lucide-react';
+import { buildWebhookUrl } from '../../../services/patientApi';
 
 const ReportViewer = ({ report, onBack }) => {
     if (!report) return null;
@@ -69,7 +70,7 @@ const ReportViewer = ({ report, onBack }) => {
             {/* Action Buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <a
-                    href={`https://n8n.curiyawellness.com/webhook/files?upload_id=${upload_id}&type=view`}
+                    href={buildWebhookUrl('files', { upload_id, type: 'view' })}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ textDecoration: 'none' }}
@@ -99,7 +100,7 @@ const ReportViewer = ({ report, onBack }) => {
                 </a>
 
                 <a
-                    href={`https://n8n.curiyawellness.com/webhook/files?upload_id=${upload_id}&type=download`}
+                    href={buildWebhookUrl('files', { upload_id, type: 'download' })}
                     style={{ textDecoration: 'none' }}
                 >
                     <button

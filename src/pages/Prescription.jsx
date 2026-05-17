@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import HeroBanner from '../components/ui/HeroBanner';
-import { ChevronLeft, Sprout, Pill } from 'lucide-react';
+import { Sprout, Pill } from 'lucide-react';
 import BillSummary from '../components/features/prescription/BillSummary';
 import MedicineList from '../components/features/prescription/MedicineList';
 import OrderStatus from '../components/features/prescription/OrderStatus';
 import { useAuth } from '../services/AuthContext';
-import Button from '../components/ui/Button';
 import GlobalShimmer from '../components/ui/GlobalShimmer';
+import {
+    fetchFromPatientWebhook
+} from '../services/patientApi';
 
 const ShimmerLoader = () => (
     <div style={{ padding: '12px 0' }}>
@@ -16,7 +18,8 @@ const ShimmerLoader = () => (
 );
 
 const Prescription = ({ onBack }) => {
-    const { user, patientId, getValidToken } = useAuth();
+    const auth = useAuth();
+    const { user, patientData, patientId } = auth;
     const [localPatientData, setLocalPatientData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -37,28 +40,16 @@ const Prescription = ({ onBack }) => {
         if (!isSilent) {
             setLoading(true);
             setError(false);
-            setLocalPatientData(null); // Never reuse cached data
+            setLocalPatientData(null);
         }
 
         try {
-            // Get fresh valid token
-            const validToken = await getValidToken();
-
-            // Fetching prescription data...
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/fetch-medicines`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${import.meta.env.VITE_AUTHORIZATION_SECRET}`
-                },
-                body: JSON.stringify({
-                    idToken: validToken,
-                    patient_id: patientId // MANDATORY: Use internal ID
-                })
+            // Using POST as primary for medicines to ensure body identity is accepted
+            const data = await fetchFromPatientWebhook('fetch-medicines', auth, {
+                method: 'POST'
             });
 
-            if (response.ok) {
-                const data = await response.json();
+            if (data) {
                 setLocalPatientData(data);
                 setError(false);
 
@@ -69,8 +60,6 @@ const Prescription = ({ onBack }) => {
                 } else if (data.status === 'Payment Failed') {
                     setPollOutcome('failed');
                     setIsPolling(false);
-                } else if (data.status === 'Payment Link Ready' && isPolling) {
-                    // Stay in polling state, outcome is handled by timeout logic in useEffect
                 }
             } else {
                 setError(true);
@@ -97,14 +86,13 @@ const Prescription = ({ onBack }) => {
         }
     };
 
-    // Initial fetch and 60s visibility-aware polling
+    // Initial fetch and polling
     useEffect(() => {
         performFetch();
 
         const interval = setInterval(() => {
-            console.log('--- PRESCRIPTION AUTO-REFRESH CHECK (60s) ---');
             performFetch(true);
-        }, 60000);
+        }, 15000);
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
@@ -117,14 +105,13 @@ const Prescription = ({ onBack }) => {
             clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [user?.idToken]);
+    }, [patientData, patientId, user?.idToken]);
 
-    // Payment Polling Logic (Fast 4s / Slow 30s)
+    // Payment Polling Logic
     useEffect(() => {
         let pollTimer;
 
         if (isPolling && !pollOutcome) {
-            console.log('🚀 STARTING FAST POLL (4s)');
             pollTimer = setInterval(() => {
                 performFetch(true);
 
@@ -137,7 +124,6 @@ const Prescription = ({ onBack }) => {
                 }
             }, 4000);
         } else if (pollOutcome === 'success') {
-            console.log('🐢 SWITCHING TO SLOW POLL (30s)');
             pollTimer = setInterval(() => {
                 performFetch(true);
             }, 30000);
@@ -145,7 +131,6 @@ const Prescription = ({ onBack }) => {
 
         return () => {
             if (pollTimer) {
-                console.log('🛑 CLEARING POLL TIMER');
                 clearInterval(pollTimer);
             }
         };
@@ -164,11 +149,9 @@ const Prescription = ({ onBack }) => {
     };
 
     const handleSimulateOutcome = (outcome) => {
-        console.log(`🛠️ MIMICKING OUTCOME: ${outcome}`);
         setPollOutcome(outcome === 'dispatched' ? 'success' : outcome);
         setIsPolling(false);
         
-        // Also update local status to match the outcome for full UI sync
         if (outcome === 'success') {
             setLocalPatientData(prev => ({ ...prev, status: 'Meds pending', tracking_id: null }));
         } else if (outcome === 'dispatched') {
@@ -217,7 +200,6 @@ const Prescription = ({ onBack }) => {
     const prescriptions = localPatientData?.prescriptions || [];
     const billing = localPatientData?.billing;
     const hasMedicines = prescriptions.length > 0;
-    // Courier-charge-only response = no medicines prescribed → treat as empty
     const hasBilling = hasMedicines && billing && (billing.total > 0 || billing.total_payable > 0);
 
     if (error || !localPatientData || (!hasMedicines && !hasBilling)) {
@@ -241,7 +223,6 @@ const Prescription = ({ onBack }) => {
                     position: 'relative',
                     overflow: 'hidden'
                 }}>
-                    {/* Glossy Highlight Layer */}
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -290,32 +271,33 @@ const Prescription = ({ onBack }) => {
                 />
             )}
 
-            {pollOutcome === 'success' ? (
+            {/* Show Order Status if payment is successful/processed */}
+            {pollOutcome === 'success' && (
                 <OrderStatus patientData={localPatientData} />
-            ) : (
-                hasBilling && (
-                    <div style={{ 
-                        opacity: isVisible ? 1 : 0, 
-                        transform: isVisible ? 'translateY(0)' : 'translateY(10px)', 
-                        transition: 'all 0.4s ease 0.2s',
-                        zIndex: 1
-                    }}>
-                        <BillSummary
-                            billing={billing}
-                            payment={localPatientData.payment}
-                            trackingId={localPatientData.trackingId}
-                            pollOutcome={pollOutcome}
-                            onPayInitiated={handlePayInitiated}
-                            onRestartPolling={handleRestartPolling}
-                            onSimulateOutcome={handleSimulateOutcome}
-                            patientId={patientId}
-                        />
-                    </div>
-                )
+            )}
+
+            {/* Always show Bill Summary if billing data exists, regardless of payment status */}
+            {hasBilling && (
+                <div style={{ 
+                    opacity: isVisible ? 1 : 0, 
+                    transform: isVisible ? 'translateY(0)' : 'translateY(10px)', 
+                    transition: 'all 0.4s ease 0.2s',
+                    zIndex: 1
+                }}>
+                    <BillSummary
+                        billing={billing}
+                        payment={localPatientData.payment}
+                        trackingId={localPatientData.trackingId}
+                        pollOutcome={pollOutcome}
+                        onPayInitiated={handlePayInitiated}
+                        onRestartPolling={handleRestartPolling}
+                        onSimulateOutcome={handleSimulateOutcome}
+                        patientId={patientId}
+                    />
+                </div>
             )}
         </div>
     );
 };
 
 export default Prescription;
-

@@ -8,6 +8,7 @@ const Profile = () => {
     const { logout, patientData } = useAuth();
     const [savedData, setSavedData] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [hasInitialized, setHasInitialized] = useState(false);
 
     // Initialize savedData from patientData if it exists
     useEffect(() => {
@@ -53,13 +54,17 @@ const Profile = () => {
         const isUpdated = findVal('Delivery Updated') === true || findVal('Delivery Updated') === 'True';
         const hasAddressData = !!(mappedData.address || mappedData.phone || isUpdated);
 
-        if (hasAddressData) {
-            setSavedData(mappedData);
-            setIsEditing(false);
-        } else if (!savedData) {
-            setIsEditing(true);
+        setSavedData(mappedData);
+
+        if (!hasInitialized) {
+            if (hasAddressData) {
+                setIsEditing(false);
+            } else {
+                setIsEditing(true);
+            }
+            setHasInitialized(true);
         }
-    }, [patientData]);
+    }, [patientData, hasInitialized]);
 
     const handleSave = (data) => {
         // Immediately update local state to reflect what the user just saved

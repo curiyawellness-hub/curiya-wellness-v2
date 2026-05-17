@@ -1,507 +1,359 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Eye, Download, Trash2, FileText, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Card from '../../ui/Card';
+import { 
+    ChevronLeft, 
+    Trash2, 
+    Activity, 
+    AlertCircle, 
+    Clock, 
+    Download, 
+    ChevronRight,
+    TrendingUp,
+    TrendingDown,
+    Minus,
+    Info,
+    FileText
+} from 'lucide-react';
 import { useAuth } from '../../../services/AuthContext';
-import MarkerCard from '../../ui/MarkerCard';
+import { 
+    fetchFromWebhook,
+    resolvePatientIdentity
+} from '../../../services/patientApi';
+import GlobalShimmer from '../../ui/GlobalShimmer';
+import '../../ui/shimmer.css';
 
-const RESULTS_CHECK_ENDPOINT = 'https://n8n.curiyawellness.com/webhook/patient/report/results';
-
-const colors = {
-    g1: '#1B4332',
-    g2: '#2D6A4F',
-    g3: '#40916C',
-    g4: '#52B788',
-};
-
-const glass = {
-    background: 'var(--glass-bg)',
-    backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-    WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-    border: 'var(--glass-border)',
-    boxShadow: 'var(--glass-shadow)',
-    borderRadius: '24px',
-};
+const ShimmerLoader = () => (
+    <div style={{ padding: '20px' }}>
+        <GlobalShimmer type="row" count={1} style={{ width: '40%', marginBottom: '24px' }} />
+        <GlobalShimmer type="card" count={3} />
+    </div>
+);
 
 const ReportAnalytics = ({ report, onBack, onDelete }) => {
-    const { getValidToken } = useAuth();
-    const [isVisible, setIsVisible] = useState(false);
+    const auth = useAuth();
+    const { user, patientData } = auth;
     const [results, setResults] = useState(null);
-    const [isChecking, setIsChecking] = useState(false);
-    const [checkError, setCheckError] = useState(null);
-    const [localStatus, setLocalStatus] = useState(report?.status || 'Processing');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    useEffect(() => {
-        const t = setTimeout(() => setIsVisible(true), 80);
-        return () => clearTimeout(t);
-    }, []);
+    const reportId = report?.report_id || report?.upload_id;
+    const identity = useMemo(() => resolvePatientIdentity(patientData, user, report), [patientData, user, report]);
 
-    const checkResults = useCallback(async (isPolling = false) => {
-        if (!report?.report_id && !report?.upload_id) return;
-        
-        if (!isPolling) setIsChecking(true);
-        setCheckError(null);
+    const fetchResults = useCallback(async (isSilent = false) => {
+        if (!reportId) return;
+        if (!isSilent) setIsLoading(true);
 
         try {
-            const reportId = report.report_id || report.upload_id;
-            const url = `${RESULTS_CHECK_ENDPOINT}?report_id=${encodeURIComponent(reportId)}`;
-            
-            const response = await fetch(url, {
-                method: 'GET'
+            const data = await fetchFromWebhook('patient/report/results', {
+                method: 'GET',
+                extras: { report_id: reportId },
+                identity: { ...identity, idToken: user?.idToken }
             });
 
-            if (!response.ok) throw new Error(`Check failed: ${response.status}`);
-            
-            const data = await response.json();
-            console.log('🔍 Results check response:', data);
+            // Robust unwrapping
+            let markers = null;
+            if (Array.isArray(data)) {
+                markers = data;
+            } else if (data && typeof data === 'object') {
+                markers = (
+                    (Array.isArray(data.results) ? data.results : null) ||
+                    (Array.isArray(data.data) ? data.data : null) ||
+                    (Array.isArray(data.items) ? data.items : null) ||
+                    (Array.isArray(data.markers) ? data.markers : null) ||
+                    (data.success && Array.isArray(data.results) ? data.results : null) ||
+                    (data.success && Array.isArray(data.data) ? data.data : null)
+                );
+            }
 
-            // Webhook returns success: true, overall_summary, markers
-            const isProcessed = data.success === true || data.processed === true || data.status === 'Ready' || data.status === 'processed' || !!data.markers || !!data.results;
-            
-            if (isProcessed) {
-                setResults(data);
-                setLocalStatus('Ready');
-                setIsChecking(false);
-            } else if (isPolling) {
-                // Continue polling if still processing and we are in polling mode
-                return false;
+            if (markers && markers.length > 0) {
+                setResults(markers);
+                setError(null);
+            } else if (data && !data.success && data.status === 'processing') {
+                setResults({ status: 'processing' });
+            } else if (data?.success) {
+                setResults(null);
+                if (!isSilent) setError('Report analysis complete, but no markers found.');
             } else {
-                setLocalStatus('Processing');
-                setIsChecking(false);
+                setResults(null);
+                if (!isSilent) setError('No analysis markers found for this report yet.');
             }
-            return isProcessed;
-        } catch (error) { // Modified catch block
-            console.error('Error checking report results:', error);
-            setCheckError(error.message);
-            // Stop polling on terminal error
-            if (pollInterval.current) {
-                clearInterval(pollInterval.current);
-            }
-            return false;
+        } catch (err) {
+            console.error('Failed to fetch results:', err);
+            if (!isSilent) setError('Unable to load report markers.');
+        } finally {
+            if (!isSilent) setIsLoading(false);
         }
-    }, [report, getValidToken]);
+    }, [reportId, identity, user?.idToken]);
 
-    // Initial check for processing reports (single check, no polling)
     useEffect(() => {
-        let isSubscribed = true;
+        fetchResults();
+        const interval = setInterval(() => {
+            if (results?.status === 'processing') fetchResults(true);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [fetchResults, results?.status]);
 
-        const startChecking = async () => {
-            if (isSubscribed) {
-                await checkResults();
+    const handleDelete = async () => {
+        if (isDeleting) return; // Guard against double-clicks
+        if (window.confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+            setIsDeleting(true);
+            try {
+                // Use the specific delete webhook
+                await fetchFromWebhook('patient/report/delete', {
+                    method: 'DELETE',
+                    extras: { report_id: reportId },
+                    identity: { ...identity, idToken: user?.idToken }
+                });
+                onDelete(reportId);
+            } catch (err) {
+                console.error('Delete failed:', err);
+                alert('Failed to delete report. Please try again.');
+                setIsDeleting(false);
             }
-        };
+        }
+    };
 
-        startChecking();
+    if (isLoading && !results) return <ShimmerLoader />;
 
-        return () => {
-            isSubscribed = false;
-        };
-    }, [checkResults]);
+    const isProcessing = results?.status === 'processing';
+    
+    // Calculate Stats
+    const stats = {
+        total: Array.isArray(results) ? results.length : 0,
+        optimal: Array.isArray(results) ? results.filter(m => m.status?.toLowerCase() === 'optimal' || m.status?.toLowerCase() === 'normal').length : 0,
+        high: Array.isArray(results) ? results.filter(m => m.status?.toLowerCase() === 'high').length : 0,
+        low: Array.isArray(results) ? results.filter(m => m.status?.toLowerCase() === 'low').length : 0
+    };
 
-    if (!report) return null;
+    const colors = {
+        primary: '#1B4332',
+        secondary: '#2D6A4F',
+        accent: '#40916C',
+        normal: '#4ade80',
+        high: '#fb923c',
+        low: '#ef4444',
+        danger: '#ef4444',
+        glass: 'rgba(255, 255, 255, 0.12)',
+        border: 'rgba(255, 255, 255, 0.2)'
+    };
 
-    const { title, date, upload_id, report_id } = report;
-    const isProcessing = localStatus === 'Processing';
+    const MarkerGauge = ({ value, range, status }) => {
+        let min = 0;
+        let max = 100;
+        let valid = false;
+
+        const rangeStr = String(range || '');
+        const numbers = rangeStr.match(/\d+(\.\d+)?/g);
+
+        if (numbers && numbers.length >= 2) {
+            min = parseFloat(numbers[0]);
+            max = parseFloat(numbers[1]);
+            valid = true;
+        } else if (numbers && numbers.length === 1) {
+            const val = parseFloat(numbers[0]);
+            if (rangeStr.includes('>')) { min = val; max = val * 2; }
+            else { min = 0; max = val; }
+            valid = true;
+        }
+
+        const current = parseFloat(value);
+        if (isNaN(current) || !valid) return null;
+
+        if (max <= min) max = min + 1;
+        
+        const rangeDiff = max - min;
+        const sliderMin = 0;
+        let sliderMax = Math.max(current * 1.2, max + rangeDiff * 0.8);
+        sliderMax = Math.ceil(sliderMax);
+
+        const toPercent = (val) => Math.min(Math.max(((val - sliderMin) / (sliderMax - sliderMin)) * 100, 0), 100);
+        
+        const rangeStartPct = toPercent(min);
+        const rangeEndPct = toPercent(max);
+        const currentPct = toPercent(current);
+
+        const isOptimal = status?.toLowerCase() === 'optimal' || status?.toLowerCase() === 'normal';
+        const isHigh = status?.toLowerCase() === 'high';
+        
+        const statusColor = isOptimal ? '#059669' : (isHigh ? '#d97706' : '#dc2626'); 
+        const trackColor = '#e5e7eb';
+        const rangeColor = '#4ade80';
+        
+        return (
+            <div style={{ marginTop: '45px', marginBottom: '10px', position: 'relative', padding: '0 10px' }}>
+                <div style={{ position: 'relative', height: '6px' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '6px', background: trackColor, borderRadius: '10px' }} />
+                    <div style={{ 
+                        position: 'absolute', top: 0, left: `${rangeStartPct}%`, width: `${rangeEndPct - rangeStartPct}%`, height: '6px', background: rangeColor, borderRadius: '10px'
+                    }} />
+                    <div style={{ 
+                        position: 'absolute', top: '3px', left: `${currentPct}%`, transform: 'translate(-50%, -50%)', zIndex: 2,
+                    }}>
+                        <div style={{
+                            position: 'relative', width: '16px', height: '16px', borderRadius: '50%', background: statusColor, border: '3px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}>
+                            <div style={{
+                                position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', background: statusColor, color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', whiteSpace: 'nowrap'
+                            }}>
+                                {current}
+                                <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderTop: `4px solid ${statusColor}` }} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', position: 'relative', marginTop: '10px', fontSize: '10px', color: '#9ca3af', fontWeight: 600, fontFamily: 'monospace' }}>
+                    <span style={{ position: 'absolute', left: '0', transform: 'translateX(-50%)' }}>{sliderMin}</span>
+                    <span style={{ position: 'absolute', left: `${rangeStartPct}%`, transform: 'translateX(-50%)', color: '#059669' }}>{min}</span>
+                    <span style={{ position: 'absolute', left: `${rangeEndPct}%`, transform: 'translateX(-50%)', color: '#059669' }}>{max}</span>
+                    <span style={{ position: 'absolute', left: '100%', transform: 'translateX(-50%)' }}>{sliderMax}</span>
+                </div>
+            </div>
+        );
+    };
 
     return (
-        <div style={{ paddingBottom: '40px' }}>
+        <div className="report-analytics animate-slide-up" style={{ paddingBottom: '120px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.04)', border: 'none', padding: '10px 16px', borderRadius: '14px', color: colors.primary, fontWeight: 500, cursor: 'pointer' }}>
+                    <ChevronLeft size={18} />
+                    Back
+                </button>
 
-            {/* ── Hero Banner ───────────────────────────────────────────── */}
-            <div style={{
-                ...glass,
-                minHeight: '165px',
-                position: 'relative',
-                overflow: 'hidden',
-                marginBottom: '16px',
-            }}>
-                {/* Decorative Circles */}
-                <div style={{ position: 'absolute', width: '200px', height: '200px', top: '-60px', right: '-60px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)' }} />
-                <div style={{ position: 'absolute', width: '130px', height: '130px', top: '-15px', right: '-15px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.06)' }} />
-                <div style={{ position: 'absolute', width: '80px', height: '80px', bottom: '-15px', left: '-15px', borderRadius: '50%', border: '1px solid rgba(27,67,50,0.08)' }} />
-
-                <div style={{ position: 'relative', zIndex: 2, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {/* Back button */}
-                    <button
-                        onClick={onBack}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '5px',
-                            background: 'rgba(27,67,50,0.08)', border: '1px solid rgba(27,67,50,0.12)',
-                            borderRadius: '20px', padding: '6px 12px', cursor: 'pointer',
-                            fontSize: '12px', fontWeight: 600, color: colors.g1, alignSelf: 'flex-start',
-                        }}
-                    >
-                        <ChevronLeft size={12} strokeWidth={2.5} />
-                        Back to Reports
-                    </button>
-
-                    {/* File icon + Title */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <div style={{
-                            width: '44px', height: '44px', borderRadius: '15px', flexShrink: 0,
-                            background: `linear-gradient(135deg, ${colors.g3}, ${colors.g2})`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 3px 10px rgba(45,106,79,0.2)',
-                        }}>
-                            <FileText size={20} color="white" />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(27,67,50,0.45)', marginBottom: '4px' }}>
-                                LAB REPORT
-                            </div>
-                            <div style={{
-                                fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: 700,
-                                color: colors.g1, lineHeight: 1.3, wordBreak: 'break-all'
-                            }}>
-                                {title}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Date + Status row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <Clock size={12} color={colors.g4} />
-                            <span style={{ fontSize: '12px', color: colors.g4, fontWeight: 500 }}>{date}</span>
-                        </div>
-                        <span style={{
-                            padding: '3px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-                            background: isProcessing ? 'rgba(239,108,0,0.12)' : 'rgba(46,125,50,0.12)',
-                            color: isProcessing ? '#EF6C00' : '#2E7D32',
-                            border: isProcessing ? '1px solid rgba(239,108,0,0.2)' : '1px solid rgba(46,125,50,0.2)',
-                        }}>
-                            {localStatus}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Results / Processing Section ──────────────────────────── */}
-            <div style={{
-                opacity: isVisible ? 1 : 0,
-                transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'all 0.4s ease 0.1s',
-                marginBottom: '20px'
-            }}>
-                {isChecking ? (
-                    <div style={{ ...glass, padding: '24px', textAlign: 'center' }}>
-                        <div className="pulse-loader" style={{ 
-                            width: '40px', height: '40px', borderRadius: '50%', 
-                            background: colors.g4, margin: '0 auto 12px', opacity: 0.6 
-                        }} />
-                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', fontWeight: 600, color: colors.g1 }}>Checking for results...</div>
-                    </div>
-                ) : results ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {/* unified Glassy Report Summary Card */}
-                        <div style={{ 
-                            ...glass,
-                            padding: '24px 20px',
-                            marginBottom: '16px',
-                            position: 'relative',
-                            overflow: 'hidden',
-                         }}>
-                            {/* Decorative background pulse/glow */}
-                            <div style={{
-                                position: 'absolute',
-                                top: '-60px',
-                                right: '-60px',
-                                width: '180px',
-                                height: '180px',
-                                background: 'radial-gradient(circle, rgba(74, 222, 128, 0.08) 0%, transparent 70%)',
-                                borderRadius: '50%'
-                            }} />
-
-                            <div style={{ position: 'relative', zIndex: 1 }}>
-                                {/* Header with Type and Ready Badge */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                                    <div style={{
-                                        background: 'rgba(27, 67, 50, 0.05)',
-                                        borderRadius: '100px',
-                                        padding: '6px 14px',
-                                        fontSize: '10px',
-                                        fontWeight: 800,
-                                        color: colors.g1,
-                                        letterSpacing: '0.08em',
-                                        textTransform: 'uppercase',
-                                        border: '1px solid rgba(27, 67, 50, 0.05)',
-                                        fontFamily: 'var(--font-body)'
-                                    }}>
-                                        {results.report_type || "Lab Report"}
-                                    </div>
-                                    <div style={{
-                                        background: 'rgba(74, 222, 128, 0.15)',
-                                        borderRadius: '100px',
-                                        padding: '6px 14px',
-                                        fontSize: '10px',
-                                        fontWeight: 800,
-                                        color: '#1B4332',
-                                        letterSpacing: '0.08em',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        border: '1px solid rgba(74, 222, 128, 0.2)',
-                                        fontFamily: 'var(--font-body)'
-                                    }}>
-                                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#4ADE80' }} />
-                                        READY
-                                    </div>
-                                </div>
-
-                                {/* Stat Grid */}
-                                <div style={{ 
-                                    display: 'grid', 
-                                    gridTemplateColumns: 'repeat(4, 1fr)', 
-                                    gap: '10px' 
-                                }}>
-                                    {[
-                                        { label: 'TOTAL', val: results.markers?.length || 0, color: '#1B4332', tint: 'rgba(27, 67, 50, 0.03)' },
-                                        { label: 'OPTIMAL', val: results.markers?.filter(m => (m.status||'').toLowerCase().includes('optimal') || (m.status||'').toLowerCase().includes('normal')).length, color: '#16A34A', tint: 'rgba(22, 163, 74, 0.05)' },
-                                        { label: 'HIGH', val: results.markers?.filter(m => (m.status||'').toLowerCase().includes('high')).length, color: '#D97706', tint: 'rgba(217, 119, 6, 0.05)' },
-                                        { label: 'LOW', val: results.markers?.filter(m => (m.status||'').toLowerCase().includes('low')).length, color: '#2563EB', tint: 'rgba(37, 99, 235, 0.05)' }
-                                    ].map((stat, i) => (
-                                        <div key={i} style={{
-                                            ...glass,
-                                            padding: '12px 6px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            background: `linear-gradient(180deg, rgba(255,255,255,0.05), ${stat.tint})`,
-                                            borderRadius: '20px',
-                                        }}>
-                                            <div style={{
-                                                fontSize: '22px',
-                                                fontWeight: 600,
-                                                color: stat.color,
-                                                fontFamily: 'monospace',
-                                                lineHeight: 1
-                                            }}>
-                                                {stat.val}
-                                            </div>
-                                            <div style={{
-                                                fontSize: '8px',
-                                                fontWeight: 800,
-                                                color: 'rgba(27, 67, 50, 0.4)',
-                                                letterSpacing: '0.08em',
-                                                fontFamily: 'var(--font-body)'
-                                            }}>
-                                                {stat.label}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Summary Text/Interpretation */}
-                        {(results.overall_summary || results.summary) && (
-                            <div style={{ 
-                                ...glass, 
-                                padding: '24px', 
-                                marginBottom: '28px',
-                             }}>
-                                <div style={{ 
-                                    padding: '0 0 16px', 
-                                    fontSize: '11px', 
-                                    fontWeight: 700, 
-                                    textTransform: 'uppercase', 
-                                    letterSpacing: '0.12em', 
-                                    color: colors.g2,
-                                    fontFamily: 'var(--font-body)'
-                                 }}>
-                                    ANALYSIS SUMMARY
-                                </div>
-                                <div style={{ 
-                                    fontSize: '14.5px', 
-                                    color: colors.g1, 
-                                    lineHeight: 1.7, 
-                                    fontWeight: 500,
-                                    fontFamily: 'var(--font-body)',
-                                    opacity: 0.95
-                                 }}>
-                                    {results.overall_summary || results.summary}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Render Markers if available */}
-                        {Array.isArray(results.markers) && results.markers.length > 0 && (
-                            <div style={{ marginTop: '8px' }}>
-                                <div style={{ 
-                                    padding: '0 4px 8px', 
-                                    fontSize: '11px', 
-                                    fontWeight: 800, 
-                                    textTransform: 'uppercase', 
-                                    letterSpacing: '0.12em', 
-                                    color: colors.g1,
-                                    fontFamily: 'var(--font-body)',
-                                    opacity: 0.8
-                                 }}>
-                                    YOUR BIOMARKERS
-                                </div>
-                                {results.markers.map((marker, idx) => (
-                                    <MarkerCard 
-                                        key={idx}
-                                        label={marker.marker_name || marker.label || marker.name}
-                                        value={marker.value}
-                                        unit={marker.unit}
-                                        referenceMin={marker.normal_min || marker.referenceMin || marker.min}
-                                        referenceMax={marker.normal_max || marker.referenceMax || marker.max}
-                                        status={marker.status}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ) : isProcessing ? (
-                    <div style={{
-                        ...glass,
-                        padding: '14px 16px',
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                            <div style={{
-                                width: '32px', height: '32px', borderRadius: '11px', flexShrink: 0,
-                                background: 'linear-gradient(135deg, rgba(239,108,0,0.2), rgba(239,108,0,0.1))',
-                                border: '1px solid rgba(239,108,0,0.2)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <Clock size={15} color="#EF6C00" />
-                            </div>
-                            <div style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontWeight: 600, color: colors.g1 }}>Processing in progress</div>
-                        </div>
-                        <div style={{ height: '1px', background: 'rgba(82,183,136,0.15)', marginBottom: '8px' }} />
-                        <div style={{ fontSize: '12.5px', color: colors.g2, lineHeight: 1.6 }}>
-                            Your report is being analyzed by our AI system. This usually takes a few minutes. We'll update this page automatically once the results are ready.
-                        </div>
-                        {checkError && (
-                            <div style={{ marginTop: '10px', fontSize: '11px', color: '#ef4444', fontStyle: 'italic' }}>
-                                {checkError}
-                            </div>
-                        )}
-                    </div>
-                ) : null}
-            </div>
-
-            {/* ── Section Label ─────────────────────────────────────────── */}
-            <div style={{ padding: '0 4px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: colors.g4 }}>
-                ORIGINAL DOCUMENTS
-            </div>
-
-            {/* ── Action Cards (View + Download) ────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
-
-                {/* View Original File */}
-                <div
-                    className="action-card"
-                    style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? 'translateY(0)' : 'translateY(10px)', transition: 'all 0.4s ease 0.1s' }}
-                >
-                    <a
-                        href={`https://n8n.curiyawellness.com/webhook/files?upload_id=${upload_id}&type=view`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: 'none', display: 'block' }}
-                    >
-                        <div style={{ ...glass, display: 'flex', alignItems: 'center', gap: '14px', padding: '15px 16px' }}>
-                            <div style={{
-                                width: '48px', height: '48px', borderRadius: '16px',
-                                background: `linear-gradient(135deg, rgba(64,145,108,0.15), rgba(116,198,157,0.08))`,
-                                border: '1px solid rgba(82,183,136,0.2)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                            }}>
-                                <Eye size={22} color={colors.g3} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 600, color: colors.g1 }}>View Original File</div>
-                                <div style={{ fontSize: '11px', color: colors.g4, marginTop: '2px', fontWeight: 500 }}>Open and read your full report</div>
-                            </div>
-                            <button style={{
-                                height: '34px', padding: '0 14px', borderRadius: '11px',
-                                background: `linear-gradient(135deg, ${colors.g3}, ${colors.g2})`,
-                                color: 'white', border: 'none', fontSize: '12px', fontWeight: 600,
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                cursor: 'pointer', boxShadow: '0 3px 10px rgba(45,106,79,0.2)',
-                                whiteSpace: 'nowrap', flexShrink: 0,
-                            }}>
-                                Open →
-                            </button>
-                        </div>
-                    </a>
-                </div>
-
-                {/* Download Original File */}
-                <div
-                    className="action-card"
-                    style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? 'translateY(0)' : 'translateY(10px)', transition: 'all 0.4s ease 0.17s' }}
-                >
-                    <a
-                        href={`https://n8n.curiyawellness.com/webhook/files?upload_id=${upload_id}&type=download`}
-                        style={{ textDecoration: 'none', display: 'block' }}
-                    >
-                        <div style={{ ...glass, display: 'flex', alignItems: 'center', gap: '14px', padding: '15px 16px' }}>
-                            <div style={{
-                                width: '48px', height: '48px', borderRadius: '16px',
-                                background: `linear-gradient(135deg, rgba(64,145,108,0.15), rgba(116,198,157,0.08))`,
-                                border: '1px solid rgba(82,183,136,0.2)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                            }}>
-                                <Download size={22} color={colors.g3} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 600, color: colors.g1 }}>Download Report</div>
-                                <div style={{ fontSize: '11px', color: colors.g4, marginTop: '2px', fontWeight: 500 }}>Save a copy to your device</div>
-                            </div>
-                            <button style={{
-                                height: '34px', padding: '0 14px', borderRadius: '11px',
-                                background: `linear-gradient(135deg, ${colors.g3}, ${colors.g2})`,
-                                color: 'white', border: 'none', fontSize: '12px', fontWeight: 600,
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                cursor: 'pointer', boxShadow: '0 3px 10px rgba(45,106,79,0.2)',
-                                whiteSpace: 'nowrap', flexShrink: 0,
-                            }}>
-                                Save →
-                            </button>
-                        </div>
-                    </a>
-                </div>
-            </div>
-
-            {/* ── Delete Row ────────────────────────────────────────────── */}
-            <div style={{
-                opacity: isVisible ? 1 : 0,
-                transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'all 0.4s ease 0.24s',
-            }}>
-                <button
-                    className="delete-btn"
-                    onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
-                            onDelete(report_id || upload_id);
-                        }
-                    }}
-                    style={{
-                        width: '100%', padding: '14px 16px', borderRadius: '20px',
-                        border: '1px solid rgba(239,68,68,0.2)',
-                        background: 'rgba(239,68,68,0.06)',
-                        color: '#ef4444',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                        fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                <button 
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        background: 'rgba(239,68,68,0.06)', 
+                        border: 'none', 
+                        padding: '10px 16px', 
+                        borderRadius: '14px', 
+                        color: colors.danger, 
+                        fontWeight: 600, 
+                        fontSize: '13px',
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s ease',
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
+                        opacity: isDeleting ? 0.6 : 1
                     }}
                 >
                     <Trash2 size={16} />
-                    Delete Report
+                    {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
             </div>
 
+            {/* Title Card */}
+            <Card className="hero-card" style={{ padding: '24px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div style={{ width: '52px', height: '52px', background: 'rgba(27,67,50,0.06)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.primary }}>
+                    <FileText size={26} />
+                </div>
+                <div>
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: colors.accent, letterSpacing: '0.12em', marginBottom: '4px', opacity: 0.7 }}>LAB REPORT</div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: colors.primary, margin: 0, lineHeight: 1.2 }}>{report?.title}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                        <span style={{ fontSize: '12px', color: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
+                            <Clock size={12} /> {report?.date}
+                        </span>
+                        <div style={{ padding: '2px 10px', background: 'rgba(74,222,128,0.12)', color: '#2d6a4f', borderRadius: '20px', fontSize: '10px', fontWeight: 600 }}>Ready</div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Summary Dashboard */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '32px' }}>
+                {[
+                    { label: 'TOTAL', val: stats.total, bg: 'rgba(0,0,0,0.02)', col: colors.primary },
+                    { label: 'OPTIMAL', val: stats.optimal, bg: 'rgba(74,222,128,0.06)', col: '#2d6a4f' },
+                    { label: 'HIGH', val: stats.high, bg: 'rgba(251,146,60,0.06)', col: '#c2410c' },
+                    { label: 'LOW', val: stats.low, bg: 'rgba(239,68,68,0.06)', col: '#b91c1c' }
+                ].map((s, i) => (
+                    <Card key={i} style={{ padding: '16px 4px', textAlign: 'center', background: s.bg, border: 'none', borderRadius: '18px' }}>
+                        <div style={{ fontSize: '22px', fontWeight: 600, color: s.col, marginBottom: '2px' }}>{s.val}</div>
+                        <div style={{ fontSize: '9px', fontWeight: 600, color: s.col, opacity: 0.5, letterSpacing: '0.05em' }}>{s.label}</div>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Markers List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: colors.accent, letterSpacing: '0.12em', padding: '0 4px', opacity: 0.8 }}>YOUR BIOMARKERS</div>
+                
+                {isProcessing ? (
+                    <Card style={{ padding: '48px', textAlign: 'center' }}>
+                        <Activity className="animate-spin" size={32} color={colors.accent} style={{ marginBottom: '16px' }} />
+                        <div style={{ fontWeight: 500, color: colors.primary }}>Analyzing Report...</div>
+                    </Card>
+                ) : Array.isArray(results) ? results.map((marker, idx) => {
+                    const isOptimal = marker.status?.toLowerCase() === 'optimal' || marker.status?.toLowerCase() === 'normal';
+                    const isHigh = marker.status?.toLowerCase() === 'high';
+                    const statusBg = isOptimal ? 'rgba(167, 243, 208, 0.4)' : (isHigh ? 'rgba(253, 230, 138, 0.5)' : 'rgba(254, 202, 202, 0.5)');
+                    const statusColor = isOptimal ? '#059669' : (isHigh ? '#d97706' : '#dc2626');
+
+                    return (
+                    <Card key={idx} style={{ padding: '20px 24px', borderRadius: '24px', marginBottom: '16px', background: '#ffffff', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1, paddingRight: '12px' }}>
+                                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '17px', fontWeight: 700, color: '#111827', margin: '0 0 8px 0', lineHeight: 1.3 }}>{marker.name}</h4>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    <span style={{ fontSize: '32px', fontWeight: 800, color: '#111827', lineHeight: 1 }}>{marker.value}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af' }}>{marker.unit}</span>
+                                </div>
+                            </div>
+                            <div style={{ 
+                                padding: '6px 12px', 
+                                background: statusBg,
+                                color: statusColor,
+                                borderRadius: '20px',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                            }}>
+                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: statusColor }} />
+                                {marker.status}
+                            </div>
+                        </div>
+                        
+                        <MarkerGauge value={marker.value} range={marker.range} status={marker.status} />
+                    </Card>
+                )}) : (
+                    <Card style={{ padding: '40px', textAlign: 'center', opacity: 0.6 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 500 }}>{error || 'No markers available.'}</div>
+                    </Card>
+                )}
+            </div>
+
+            {/* Original Documents */}
+            <div style={{ marginTop: '32px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: colors.accent, letterSpacing: '0.1em', padding: '0 4px', marginBottom: '12px' }}>ORIGINAL DOCUMENTS</div>
+                <Card style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ width: '44px', height: '44px', background: 'rgba(0,0,0,0.04)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.secondary }}>
+                            <Activity size={22} />
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '15px', fontWeight: 700, color: colors.primary }}>View Original File</div>
+                            <div style={{ fontSize: '11px', color: colors.accent, fontWeight: 500 }}>Open and read your full report</div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => report?.url && window.open(report.url, '_blank')}
+                        style={{ background: colors.secondary, color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '12px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        Open <ChevronRight size={16} />
+                    </button>
+                </Card>
+            </div>
+
             <style>{`
-                .action-card:hover > a > div,
-                .action-card:hover > div { transform: translateY(-3px) !important; box-shadow: 0 12px 30px rgba(27,67,50,0.15) !important; }
-                .action-card:active > a > div,
-                .action-card:active > div { transform: scale(0.98) !important; }
-                .delete-btn:hover { background: rgba(239,68,68,0.12) !important; border-color: rgba(239,68,68,0.35) !important; transform: translateY(-2px); }
-                .delete-btn:active { transform: translateY(0); }
-                .pulse-loader { animation: pulse 1.5s ease-in-out infinite; }
-                @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.3; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(0.9); opacity: 0.3; } }
+                .animate-spin { animation: spin 3s linear infinite; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}</style>
         </div>
     );

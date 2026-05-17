@@ -4,10 +4,12 @@ const headers = {
     'Authorization': 'Bearer curiya_portal_secret_2026'
 };
 const body = JSON.stringify({
-    idToken: 'test_token'
+    patient_id: '__NO_SUCH_PATIENT__',
+    email: 'no-such-patient@example.invalid'
 });
 
 console.log(`Testing POST to: ${url}`);
+console.log('Expected scoped response: {"success":false,"error":"Patient not found"}');
 
 fetch(url, {
     method: 'POST',

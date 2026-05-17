@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import Card from '../../ui/Card';
-import { Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import Button from '../../ui/Button';
 import { useAuth } from '../../../services/AuthContext';
+import { buildPatientScopedUrl, resolvePatientIdentity } from '../../../services/patientApi';
 
 const ReportUpload = ({ onBack, onSuccess }) => {
-    const { user, getValidToken } = useAuth();
+    const { user, patientData, getValidToken } = useAuth();
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [complete, setComplete] = useState(false);
     const [error, setError] = useState(null);
 
-    const handleFileChange = (e) => {
-        const selected = e.target.files[0];
+    const handleFileChange = (event) => {
+        const selected = event.target.files[0];
         if (selected && (selected.type === 'application/pdf' || selected.type.startsWith('image/'))) {
             setFile(selected);
             setError(null);
@@ -28,24 +29,29 @@ const ReportUpload = ({ onBack, onSuccess }) => {
         setProgress(0);
 
         try {
-            // Get a valid token (will refresh if expired)
             const validToken = await getValidToken();
+            const identity = resolvePatientIdentity(patientData, user);
+            const requestUrl = buildPatientScopedUrl('patient/report/upload', identity);
 
             const formData = new FormData();
             formData.append('file', file);
-            // MANDATORY: Add metadata fields as form-data (NOT in headers or JSON)
             formData.append('uploaded_by', 'patient');
             formData.append('source', 'webapp');
-            // Optional: formData.append('report_context', 'lab_report');
+            if (identity.patientId) {
+                formData.append('patient_id', identity.patientId);
+            }
+            if (identity.email) {
+                formData.append('email', identity.email);
+            }
 
-            console.log('📤 Upload Request Details:');
-            console.log('  Endpoint:', 'https://n8n.curiyawellness.com/webhook/patient/report/upload');
-            console.log('  File:', file.name, `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-            console.log('  Form-Data Fields:');
-            console.log('    - file:', file.name);
-            console.log('    - uploaded_by: patient');
-            console.log('    - source: webapp');
-            console.log('  Authorization: Bearer <token>');
+            console.log('authenticatedUser', user);
+            console.log('fetch webhook URL', requestUrl);
+            console.log('patient response', {
+                patient_id: identity.patientId,
+                email: identity.email,
+                uploaded_by: 'patient',
+                source: 'webapp'
+            });
 
             const xhr = new XMLHttpRequest();
 
@@ -58,27 +64,27 @@ const ReportUpload = ({ onBack, onSuccess }) => {
 
             xhr.onload = () => {
                 if (xhr.status === 200 || xhr.status === 201) {
+                    console.log('patient response', xhr.responseText);
                     setComplete(true);
                     setUploading(false);
 
-                    // Construct a temporary report object or use server response
-                    // Optimistic UI update
                     const newReport = {
                         id: Date.now().toString(),
-                        title: file.name.replace(/\.[^/.]+$/, ""),
+                        title: file.name.replace(/\.[^/.]+$/, ''),
                         date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
                         report_date: new Date().toISOString().split('T')[0],
-                        status: 'Processing', // Backend will process it
-                        type: file.type === 'application/pdf' ? 'document' : 'scan', // Guess type
+                        status: 'Processing',
+                        type: file.type === 'application/pdf' ? 'document' : 'scan',
                         documentType: 'Uploaded'
                     };
 
                     setTimeout(() => onSuccess(newReport), 1500);
-                } else {
-                    setUploading(false);
-                    setError('Upload failed. Please try again.');
-                    console.error('Upload failed:', xhr.status, xhr.responseText);
+                    return;
                 }
+
+                setUploading(false);
+                setError('Upload failed. Please try again.');
+                console.error('Upload failed:', xhr.status, xhr.responseText);
             };
 
             xhr.onerror = () => {
@@ -87,24 +93,19 @@ const ReportUpload = ({ onBack, onSuccess }) => {
                 console.error('Upload network error');
             };
 
-            xhr.open('POST', 'https://n8n.curiyawellness.com/webhook/patient/report/upload');
+            xhr.open('POST', requestUrl);
             xhr.setRequestHeader('Authorization', `Bearer ${validToken}`);
             xhr.send(formData);
-
-        } catch (e) {
+        } catch (uploadError) {
             setUploading(false);
-            setError(`Upload preparation failed: ${e.message}`);
-            console.error('Upload preparation error:', e);
+            setError(`Upload preparation failed: ${uploadError.message}`);
+            console.error('Upload preparation error:', uploadError);
         }
     };
-
-
 
     return (
         <Card title="Upload Lab Report">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-
                 {!complete ? (
                     <>
                         <div

@@ -6,6 +6,8 @@ import Prescription from './Prescription';
 import LabReports from './LabReports';
 import DietProtocol from '../components/features/protocol/DietProtocol';
 import RelaxationPlayer from '../components/features/protocol/RelaxationPlayer';
+import { useAuth } from '../services/AuthContext';
+import { fetchFromWebhook } from '../services/patientApi';
 
 const ProtocolGrid = ({ onSelect, flags = {} }) => {
     const items = [
@@ -25,7 +27,7 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
             />
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-                {items.map((item, index) => (
+                {items.map((item) => (
                     <div key={item.id}>
                         <button
                             onClick={() => onSelect(item.id)}
@@ -41,7 +43,6 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
                                 border: 'var(--glass-border)',
                                 borderRadius: 'var(--radius-lg)',
                                 width: '100%',
-                                marginBottom: 0 // Margin is now controlled by the animate-slide-up wrapper or grid gap
                             }}
                         >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -57,13 +58,9 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
                                 <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-primary-dark)' }}>
                                     {item.label}
                                 </span>
-                                {item.subtitle && (
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-secondary)', opacity: 0.8 }}>
-                                        {item.subtitle}
-                                    </span>
-                                )}
                             </div>
                         </div>
+                        <ChevronRight size={20} color="var(--color-secondary)" opacity={0.5} />
                         </button>
                     </div>
                 ))}
@@ -72,76 +69,32 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
     );
 };
 
-// The old DietView is replaced by DietProtocol
-const DietView = ({ onBack }) => {
-    return <DietProtocol onBack={onBack} />;
-};
-
-
-
-const PlaceholderView = ({ title, icon: Icon, children, onBack }) => (
-    <div>
-        <Card title={title}>
-            <button
-                onClick={onBack}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    background: 'rgba(27,67,50,0.08)',
-                    border: '1px solid rgba(27,67,50,0.12)',
-                    padding: '6px 12px',
-                    borderRadius: '20px',
-                    color: 'var(--color-primary-dark)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    marginBottom: '20px'
-                }}
-            >
-                <ChevronLeft size={12} strokeWidth={2.5} />
-                Back to Protocol
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                <div className="glass-bubble" style={{ width: '40px', height: '40px' }}>
-                    <Icon size={20} />
-                </div>
-                <p style={{ color: 'var(--color-primary-body)', fontWeight: 500 }}>{children}</p>
-            </div>
-            <div style={{ padding: '20px', background: 'rgba(255,255,255,0.15)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.2)' }}>
-                <p style={{ fontStyle: 'italic', color: 'var(--color-secondary)' }}>
-                    Detailed plan loading...
-                </p>
-            </div>
-        </Card>
-    </div>
-);
-
 const YogaView = ({ onBack }) => {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const { user, patientId } = useAuth();
+    const [isLoading, setIsLoading] = useState(true);
     const [yogaData, setYogaData] = useState(null);
+    const [error, setError] = useState(null);
 
     const fetchYogaSession = async () => {
-        setLoading(true);
+        setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/yoga-sync');
-            if (!response.ok) {
-                throw new Error('Failed to fetch yoga session data');
-            }
-            const data = await response.json();
+            const data = await fetchFromWebhook('yoga-sync', {
+                method: 'GET',
+                identity: { email: user?.email, idToken: user?.idToken }
+            });
             setYogaData(data);
         } catch (err) {
+            console.error('Yoga fetch failed:', err);
             setError('Unable to load session info. Please try again.');
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
     useEffect(() => {
         fetchYogaSession();
-    }, []);
+    }, [user?.email, user?.idToken]);
 
     const colors = {
         g1: '#1B4332',
@@ -152,429 +105,178 @@ const YogaView = ({ onBack }) => {
         g6: '#B7E4C7',
     };
 
-    const renderLoading = () => (
-        <div style={{ paddingBottom: '40px' }}>
-            <HeroBanner
-                title="Yoga Therapy"
-                label="LIVE SESSIONS"
-                onBack={onBack}
-                backText="Back to Protocol"
-            />
-            <div style={{ marginTop: '20px' }} />
-            {/* Loading skeleton */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.05s', opacity: 0 }}>
-                <div style={{
-                    position: 'relative',
-                    padding: '20px',
-                    marginBottom: '16px',
-                    borderRadius: '24px',
-                    background: 'var(--glass-bg)',
-                    border: 'var(--glass-border)',
-                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                }}>
-                    <div style={{ height: '100px', background: 'rgba(82, 183, 136, 0.1)', borderRadius: '12px' }} />
+    if (isLoading) {
+        return (
+            <div style={{ paddingBottom: '40px' }}>
+                <HeroBanner title="Yoga Therapy" label="LIVE SESSIONS" onBack={onBack} backText="Back to Protocol" badge="Checking..." />
+                <div style={{ padding: '20px' }}>
+                    <div style={{ height: '180px', borderRadius: '24px', background: 'var(--glass-bg)', border: 'var(--glass-border)', animation: 'pulse 2s infinite' }} />
                 </div>
             </div>
-            <style>{`
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                }
-            `}</style>
-        </div>
-    );
+        );
+    }
 
-    const renderError = () => (
-        <div style={{ paddingBottom: '40px' }}>
-            <HeroBanner
-                title="Yoga Therapy"
-                label="LIVE SESSIONS"
-                onBack={onBack}
-                backText="Back to Protocol"
-            />
-            <div style={{ marginTop: '20px' }} />
-            <div className="animate-slide-up" style={{ animationDelay: '0.05s', opacity: 0 }}>
-                <div style={{
-                    padding: '20px',
-                    marginBottom: '16px',
-                    borderRadius: '24px',
-                    background: 'var(--glass-bg)',
-                    border: 'var(--glass-border)',
-                    textAlign: 'center'
-                }}>
-                    <p style={{ color: colors.g1, marginBottom: '16px', fontSize: '14px' }}>
-                        {error}
-                    </p>
-                    <button
-                        onClick={fetchYogaSession}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: '12px',
-                            background: `linear-gradient(145deg, ${colors.g2}, ${colors.g1})`,
-                            color: 'white',
-                            border: 'none',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(27, 67, 50, 0.2)'
-                        }}
-                    >
-                        Retry
-                    </button>
+    if (error) {
+        return (
+            <div style={{ paddingBottom: '40px' }}>
+                <HeroBanner title="Yoga Therapy" label="LIVE SESSIONS" onBack={onBack} backText="Back to Protocol" />
+                <div className="animate-slide-up" style={{ padding: '24px', margin: '20px', background: 'var(--glass-bg)', borderRadius: '24px', border: 'var(--glass-border)', textAlign: 'center' }}>
+                    <p style={{ color: colors.g1, marginBottom: '16px' }}>{error}</p>
+                    <button onClick={fetchYogaSession} className="primary-button" style={{ padding: '12px 24px', borderRadius: '14px', background: colors.g1, color: 'white', border: 'none', fontWeight: 600 }}>Retry</button>
                 </div>
             </div>
-        </div>
+        );
+    }
+
+    // Determine State from the new JSON structure
+    const liveSession = yogaData?.liveSession;
+    const nextSession = yogaData?.nextSession;
+    const ui = yogaData?.ui || {};
+    
+    // Robust Logic: Even if the backend says "LIVE", check if the session's end time has passed.
+    const now = new Date();
+    const isLiveNow = ui.isLive === true && 
+                      liveSession && 
+                      liveSession.status === 'LIVE' && 
+                      new Date(liveSession.endISO) > now;
+
+    // Determine which session to show
+    // Priority: truly live session > next upcoming session
+    const activeSession = isLiveNow ? liveSession : nextSession;
+    
+    const uiState = isLiveNow ? 'LIVE' : (activeSession ? 'UPCOMING' : 'NO_SESSION');
+
+    const formatSessionTime = (isoString) => {
+        if (!isoString) return '';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (e) {
+            return 'Scheduled';
+        }
+    };
+
+    const renderHero = () => (
+        <HeroBanner
+            title="Yoga Therapy"
+            label="LIVE SESSIONS"
+            onBack={onBack}
+            backText="Back to Protocol"
+            badge={isLiveNow ? 'LIVE NOW' : (activeSession ? 'UPCOMING' : 'CLOSED')}
+        />
     );
 
-    const renderNoSession = () => (
-        <div style={{ paddingBottom: '40px' }}>
-            <HeroBanner
-                title="Yoga Therapy"
-                label="LIVE SESSIONS"
-                onBack={onBack}
-                backText="Back to Protocol"
-            />
-            <div style={{ marginTop: '20px' }} />
-            <div className="animate-slide-up" style={{ animationDelay: '0.05s', opacity: 0 }}>
-                <div style={{
-                    padding: '24px',
-                    borderRadius: '24px',
-                    background: 'var(--glass-bg)',
-                    border: 'var(--glass-border)',
-                    textAlign: 'center'
-                }}>
-                    <p style={{ color: colors.g2, fontSize: '16px', fontWeight: 500 }}>
-                        No session today
+    // Design 1: No Session Today
+    if (uiState === 'NO_SESSION' || !activeSession) {
+        return (
+            <div style={{ paddingBottom: '40px' }}>
+                {renderHero()}
+                <div className="animate-slide-up" style={{ padding: '40px 24px', margin: '0 4px', borderRadius: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))', border: 'var(--glass-border)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'rgba(27, 67, 50, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.g2 }}>
+                        <Zap size={32} opacity={0.3} />
+                    </div>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: colors.g1, margin: 0 }}>No sessions today</h2>
+                    <p style={{ fontSize: '0.9rem', color: colors.g2, opacity: 0.7, maxWidth: '240px', lineHeight: 1.6, margin: 0 }}>
+                        There are no live yoga sessions scheduled for today. Check back tomorrow for the new schedule.
                     </p>
                 </div>
             </div>
-        </div>
-    );
+        );
+    }
 
-    const renderLiveSession = (ui) => (
+    // Design 2 & 3: Upcoming and Live
+    const isLive = uiState === 'LIVE';
+    const startTime = formatSessionTime(activeSession.startISO);
+
+    return (
         <div style={{ paddingBottom: '40px' }}>
-            <HeroBanner
-                title="Yoga Therapy"
-                label="LIVE SESSIONS"
-                onBack={onBack}
-                backText="Back to Protocol"
-            />
-
-            {/* Status Badge - Green LIVE */}
-            <div style={{
-                position: 'relative',
-                marginTop: '-56px',
-                marginRight: '18px',
-                zIndex: 10,
-                display: 'flex',
-                justifyContent: 'flex-end',
-                pointerEvents: 'none'
-            }}>
-                <div style={{
-                    background: 'rgba(76, 175, 80, 0.15)',
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                    borderRadius: '12px',
-                    padding: '6px 11px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    pointerEvents: 'auto'
-                }}>
-                    <div style={{ 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        background: '#4CAF50',
-                        boxShadow: '0 0 8px rgba(76, 175, 80, 0.8)',
-                        animation: 'pulse-green 2s infinite'
-                    }} />
-                    <span style={{ 
-                        fontSize: '11px', 
-                        fontWeight: 600, 
-                        color: '#2D6A4F',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.02em',
-                    }}>
-                        {ui.badgeText}
+            {renderHero()}
+            
+            <div className="animate-slide-up" style={{ padding: '24px', borderRadius: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))', border: 'var(--glass-border)', boxShadow: 'var(--glass-shadow)', position: 'relative', overflow: 'hidden' }}>
+                {/* Status Indicator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isLive ? '#22c55e' : '#eab308', boxShadow: isLive ? '0 0 12px #22c55e' : 'none' }} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', color: isLive ? '#15803d' : '#854d0e', textTransform: 'uppercase' }}>
+                        {isLive ? 'Session is Live' : 'Upcoming Session'}
                     </span>
                 </div>
-            </div>
-            
-            <div style={{ marginTop: '20px' }} />
 
-            {/* Instruction Card */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.05s', opacity: 0 }}>
-                <div 
-                    style={{
-                        position: 'relative',
-                        padding: '20px',
-                        marginBottom: '16px',
-                        overflow: 'hidden',
-                        borderRadius: '24px',
-                        background: 'var(--glass-bg)',
-                        backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-                        WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-                        border: 'var(--glass-border)',
-                        boxShadow: 'var(--glass-shadow)'
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
-                        <div style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '14px',
-                            background: `linear-gradient(135deg, ${colors.g3}, ${colors.g2})`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 3px 10px rgba(45,106,79,0.15)',
-                            flexShrink: 0
-                        }}>
-                            <Zap size={20} color="white" />
-                        </div>
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 600, color: colors.g1, marginBottom: '4px' }}>Daily Practice</div>
-                            <div style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: colors.g2, lineHeight: 1.5, fontWeight: 500 }}>
-                                Daily group yoga session focusing on overall wellness and mental clarity.
-                            </div>
-                        </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '18px', background: isLive ? 'linear-gradient(135deg, #2D6A4F, #1B4332)' : 'rgba(27, 67, 50, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLive ? 'white' : colors.g1, border: isLive ? 'none' : '1px solid rgba(27, 67, 50, 0.12)' }}>
+                        <Zap size={28} fill={isLive ? "white" : "none"} />
                     </div>
-                    
-                    <div style={{ height: '1px', background: 'rgba(82,183,136,0.15)', margin: '12px 0' }} />
-                    
-                    <div style={{ fontSize: '12px', color: colors.g2, fontStyle: 'italic', lineHeight: 1.6 }}>
-                        Yoga helps in cultivating mental clarity, reducing stress, and enhancing overall well-being.
+                    <div style={{ flex: 1 }}>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: colors.g1, textTransform: 'capitalize' }}>{activeSession.sessionName || "Healing Yoga"}</h3>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: colors.g2, opacity: 0.8, fontWeight: 500 }}>
+                            {activeSession.batch ? `${activeSession.batch} Batch • ` : ''}Daily group session
+                        </p>
                     </div>
                 </div>
-            </div>
 
-            {/* Section Label */}
-            <div style={{ fontFamily: 'var(--font-body)', padding: '0 4px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: colors.g4, marginTop: '8px' }}>
-                LIVE CLASS
-            </div>
-
-            {/* Join Button */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.12s', opacity: 0 }}>
+                {/* Info Bar */}
+                <div style={{ background: 'rgba(27, 67, 50, 0.04)', borderRadius: '16px', padding: '12px 16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(27, 67, 50, 0.06)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '0.7rem', color: colors.g2, opacity: 0.6, fontWeight: 600, textTransform: 'uppercase' }}>Start Time</span>
+                        <span style={{ fontSize: '0.9rem', color: colors.g1, fontWeight: 700 }}>{startTime || 'Today'}</span>
+                    </div>
+                    {activeSession.endISO && (
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'right' }}>
+                            <span style={{ fontSize: '0.7rem', color: colors.g2, opacity: 0.6, fontWeight: 600, textTransform: 'uppercase' }}>End Time</span>
+                            <span style={{ fontSize: '0.9rem', color: colors.g1, fontWeight: 700 }}>{formatSessionTime(activeSession.endISO)}</span>
+                        </div>
+                    )}
+                </div>
+                
                 <button
-                    onClick={() => window.open(ui.joinUrl, '_blank')}
+                    onClick={() => isLive && activeSession.joinLink && window.open(activeSession.joinLink, '_blank')}
+                    disabled={!isLive}
                     style={{
                         width: '100%',
-                        padding: '16px',
-                        borderRadius: '24px',
-                        background: `linear-gradient(145deg, ${colors.g2}, ${colors.g1})`,
-                        color: 'white',
-                        border: 'none',
-                        fontSize: '15px',
+                        padding: '18px',
+                        borderRadius: '20px',
+                        background: isLive ? 'linear-gradient(145deg, #2D6A4F, #1B4332)' : 'rgba(27, 67, 50, 0.08)',
+                        color: isLive ? 'white' : 'rgba(27, 67, 50, 0.4)',
+                        border: isLive ? 'none' : '1px solid rgba(27, 67, 50, 0.1)',
                         fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: '0 8px 25px rgba(27, 67, 50, 0.25)',
+                        fontSize: '1rem',
+                        cursor: isLive ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s',
+                        boxShadow: isLive ? '0 10px 20px rgba(27, 67, 50, 0.2)' : 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '12px',
-                        marginBottom: '16px'
+                        gap: '10px'
                     }}
                 >
-                    <div style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        background: '#FFFFFF',
-                        boxShadow: '0 0 12px #FFFFFF, 0 0 4px #FFFFFF',
-                        animation: 'pulse-white 2s infinite'
-                    }} />
-                    {ui.buttonText}
-                </button>
-            </div>
-
-            <style>{`
-                @keyframes pulse-green {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                }
-                @keyframes pulse-white {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.6; }
-                }
-            `}</style>
-        </div>
-    );
-
-    const renderUpcomingSession = (ui) => (
-        <div style={{ paddingBottom: '40px' }}>
-            <HeroBanner
-                title="Yoga Therapy"
-                label="LIVE SESSIONS"
-                onBack={onBack}
-                backText="Back to Protocol"
-            />
-
-            {/* Status Badge - Upcoming */}
-            <div style={{
-                position: 'relative',
-                marginTop: '-56px',
-                marginRight: '18px',
-                zIndex: 10,
-                display: 'flex',
-                justifyContent: 'flex-end',
-                pointerEvents: 'none'
-            }}>
-                <div style={{
-                    background: 'rgba(27,67,50,0.08)',
-                    border: '1px solid rgba(27,67,50,0.12)',
-                    borderRadius: '12px',
-                    padding: '6px 11px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    pointerEvents: 'auto'
-                }}>
-                    <span style={{ 
-                        fontSize: '11px', 
-                        fontWeight: 600, 
-                        color: colors.g1,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.02em',
-                    }}>
-                        {ui.badgeText}
-                    </span>
-                </div>
-            </div>
-            
-            <div style={{ marginTop: '20px' }} />
-
-            {/* Instruction Card */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.05s', opacity: 0 }}>
-                <div 
-                    style={{
-                        position: 'relative',
-                        padding: '20px',
-                        marginBottom: '16px',
-                        overflow: 'hidden',
-                        borderRadius: '24px',
-                        background: 'var(--glass-bg)',
-                        backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-                        WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
-                        border: 'var(--glass-border)',
-                        boxShadow: 'var(--glass-shadow)'
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
-                        <div style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '14px',
-                            background: `linear-gradient(135deg, ${colors.g3}, ${colors.g2})`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 3px 10px rgba(45,106,79,0.15)',
-                            flexShrink: 0
-                        }}>
-                            <Zap size={20} color="white" />
-                        </div>
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 600, color: colors.g1, marginBottom: '4px' }}>Daily Practice</div>
-                            <div style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: colors.g2, lineHeight: 1.5, fontWeight: 500 }}>
-                                Daily group yoga session focusing on overall wellness and mental clarity.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style={{ fontSize: '12px', color: colors.g2, fontStyle: 'italic', lineHeight: 1.6 }}>
-                        Yoga helps in cultivating mental clarity, reducing stress, and enhancing overall well-being.
-                    </div>
-                </div>
-            </div>
-
-            {/* Section Label */}
-            <div style={{ fontFamily: 'var(--font-body)', padding: '0 4px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: colors.g4, marginTop: '8px' }}>
-                UPCOMING CLASS
-            </div>
-
-            {/* Disabled Join Button */}
-            <div className="animate-slide-up" style={{ animationDelay: '0.12s', opacity: 0 }}>
-                <button
-                    disabled
-                    style={{
-                        width: '100%',
-                        padding: '16px',
-                        borderRadius: '24px',
-                        background: `linear-gradient(145deg, ${colors.g2}, ${colors.g1})`,
-                        color: 'white',
-                        border: 'none',
-                        fontSize: '15px',
-                        fontWeight: 700,
-                        cursor: 'not-allowed',
-                        marginBottom: '16px',
-                        boxShadow: '0 8px 25px rgba(27, 67, 50, 0.25)'
-                    }}
-                >
-                    {ui.buttonText}
+                    {isLive && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white', animation: 'pulse 1.5s infinite' }} />}
+                    {isLive ? (ui.buttonText || 'Join Live Session') : `Next Class at ${startTime}`}
                 </button>
             </div>
         </div>
     );
-
-    if (loading) return renderLoading();
-    if (error) return renderError();
-    if (!yogaData || !yogaData.ui) return renderError();
-
-    const { ui } = yogaData;
-
-    switch (ui.uiState) {
-        case 'LIVE':
-            return renderLiveSession(ui);
-        case 'UPCOMING':
-            return renderUpcomingSession(ui);
-        case 'NO_SESSION':
-            return renderNoSession();
-        default:
-            return renderError();
-    }
 };
 
 const Protocol = ({ flags = {} }) => {
-    const [view, setView] = useState('grid'); // grid, meds, diet, yoga, sleep
+    const [view, setView] = useState('grid');
 
     const renderContent = () => {
         switch (view) {
             case 'meds':
-                return (
-                    <div>
-                        <Prescription onBack={() => setView('grid')} />
-                    </div>
-                );
+                return <Prescription onBack={() => setView('grid')} />;
             case 'reports':
                 return <LabReports onBack={() => setView('grid')} flags={flags} />;
             case 'diet':
-                return (
-                    <DietView
-                        onBack={() => setView('grid')}
-                    />
-                );
+                return <DietProtocol onBack={() => setView('grid')} />;
             case 'yoga':
-                return (
-                    <YogaView
-                        onBack={() => setView('grid')}
-                    />
-                );
+                return <YogaView onBack={() => setView('grid')} />;
             case 'sleep':
-                if (flags.audio_enabled === false) {
-                    setView('grid');
-                    return null;
-                }
                 return <RelaxationPlayer onBack={() => setView('grid')} />;
             default:
                 return <ProtocolGrid onSelect={setView} flags={flags} />;
         }
     };
 
-    return (
-        <div>
-            {renderContent()}
-        </div>
-    );
+    return <div>{renderContent()}</div>;
 };
 
 export default Protocol;

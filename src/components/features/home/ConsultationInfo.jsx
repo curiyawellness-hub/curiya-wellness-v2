@@ -70,7 +70,7 @@ const InfoRow = ({ icon: Icon, label, value, highlight = false, isSmall = false 
             <p style={{
                 fontFamily: 'var(--font-heading)',
                 fontSize: isSmall ? '0.9rem' : '1rem',
-                fontWeight: highlight ? 700 : 600,
+                fontWeight: highlight ? 600 : 500,
                 color: 'var(--color-primary-dark)',
                 lineHeight: 1.2
             }}>
@@ -109,7 +109,7 @@ const ConsultationInfo = ({ doctor, complaint, consultDate, followUp, status }) 
             }} />
 
             {/* Title */}
-            <h3 style={{ fontSize: '1.25rem', color: 'var(--color-primary-dark)', marginBottom: '16px', position: 'relative' }}>
+            <h3 style={{ fontSize: '1.25rem', color: 'var(--color-primary-dark)', marginBottom: '16px', position: 'relative', fontWeight: 600 }}>
                 Consultation Info
             </h3>
 
