@@ -24,6 +24,7 @@ const Prescription = ({ onBack }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
+    const [isSimulated, setIsSimulated] = useState(false);
 
     // Payment Polling States
     const [isPolling, setIsPolling] = useState(false);
@@ -75,6 +76,7 @@ const Prescription = ({ onBack }) => {
     const isFetching = useRef(false);
 
     const performFetch = async (isSilent = false) => {
+        if (isSimulated) return; // Skip fetching if simulating outcomes
         if (!user?.idToken || isFetching.current) return;
         if (document.visibilityState === 'hidden' && isSilent) return;
 
@@ -132,34 +134,51 @@ const Prescription = ({ onBack }) => {
     }, [isPolling, pollOutcome, pollingStartTime, user?.idToken]);
 
     const handlePayInitiated = () => {
+        setIsSimulated(false);
         setIsPolling(true);
         setPollingStartTime(Date.now());
         setPollOutcome(null);
     };
 
     const handleRestartPolling = () => {
+        setIsSimulated(false);
         setIsPolling(true);
         setPollingStartTime(Date.now());
         setPollOutcome(null);
     };
 
     const handleSimulateOutcome = (outcome) => {
+        setIsSimulated(true);
         setPollOutcome(outcome === 'dispatched' ? 'success' : outcome);
         setIsPolling(false);
         
         if (outcome === 'success') {
-            setLocalPatientData(prev => ({ ...prev, status: 'Meds pending', tracking_id: null }));
+            setLocalPatientData(prev => ({ 
+                ...prev, 
+                status: 'Meds pending', 
+                tracking_id: null,
+                payment: prev?.payment ? { ...prev.payment, status: 'PAID' } : { status: 'PAID' }
+            }));
         } else if (outcome === 'dispatched') {
             setLocalPatientData(prev => ({ 
                 ...prev, 
                 status: 'Meds Sent', 
                 tracking_id: 'CURI-7892341',
-                courier_name: 'BlueDart Express'
+                courier_name: 'BlueDart Express',
+                payment: prev?.payment ? { ...prev.payment, status: 'PAID' } : { status: 'PAID' }
             }));
         } else if (outcome === 'failed') {
-            setLocalPatientData(prev => ({ ...prev, status: 'Payment Failed' }));
+            setLocalPatientData(prev => ({ 
+                ...prev, 
+                status: 'Payment Failed',
+                payment: prev?.payment ? { ...prev.payment, status: 'FAILED' } : { status: 'FAILED' }
+            }));
         } else if (outcome === 'timeout') {
-            setLocalPatientData(prev => ({ ...prev, status: 'Payment Link Ready' }));
+            setLocalPatientData(prev => ({ 
+                ...prev, 
+                status: 'Payment Link Ready',
+                payment: prev?.payment ? { ...prev.payment, status: 'ACTIVE' } : { status: 'ACTIVE' }
+            }));
         }
     };
 
@@ -282,7 +301,7 @@ const Prescription = ({ onBack }) => {
                     <BillSummary
                         billing={billing}
                         payment={localPatientData.payment}
-                        trackingId={localPatientData.trackingId}
+                        trackingId={localPatientData.trackingId || localPatientData.tracking_id}
                         pollOutcome={pollOutcome}
                         onPayInitiated={handlePayInitiated}
                         onRestartPolling={handleRestartPolling}
