@@ -150,8 +150,8 @@ const Home = () => {
             <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
                 <QueryBanner 
                     type="amber"
-                    title="Need Help?"
-                    buttonText="Ask Now"
+                    title="Have a question about your care?"
+                    buttonText="Talk to us"
                     onClick={() => setIsContactOpen(true)}
                     className="action-card"
                 />

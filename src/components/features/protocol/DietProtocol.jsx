@@ -175,9 +175,11 @@ const DietProtocol = ({ onBack }) => {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '16px',
-                    background: 'var(--glass-bg)',
+                    background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                     backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
+                    border: 'var(--glass-border)',
+                    boxShadow: 'var(--glass-shadow)',
                 }}>
                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                         <div style={{
@@ -225,9 +227,11 @@ const DietProtocol = ({ onBack }) => {
                     onClick={handleViewPDF}
                     className="hero-card"
                     style={{
-                        background: 'var(--glass-bg)',
+                        background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                         backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                         WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
+                        border: 'var(--glass-border)',
+                        boxShadow: 'var(--glass-shadow)',
                         borderRadius: '20px',
                         padding: '16px',
                         display: 'flex',
@@ -275,9 +279,11 @@ const DietProtocol = ({ onBack }) => {
                     onClick={handleDownload}
                     className="hero-card"
                     style={{
-                        background: 'var(--glass-bg)',
+                        background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                         backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                         WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
+                        border: 'var(--glass-border)',
+                        boxShadow: 'var(--glass-shadow)',
                         borderRadius: '20px',
                         padding: '16px',
                         display: 'flex',
@@ -324,7 +330,7 @@ const DietProtocol = ({ onBack }) => {
             {/* Help Banner */}
             <div className="animate-slide-up" style={{ animationDelay: '0.4s', marginTop: '40px' }}>
                 <div className="hero-card" style={{
-                    background: 'var(--glass-bg)',
+                    background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                     backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     borderRadius: '24px',

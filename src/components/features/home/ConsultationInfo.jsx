@@ -4,35 +4,71 @@ import Badge from '../../ui/Badge';
 import { Calendar, User, Activity } from 'lucide-react';
 
 const formatDate = (dateValue) => {
-    if (!dateValue) return '--/--/--';
+    if (!dateValue || dateValue === '--/--/--') return '--/--/--';
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     try {
         const date = new Date(dateValue);
-        // If it's an invalid date (like our mock strings "25 Jan, 2025"), 
-        // return the string as is or try to parse it better.
-        if (isNaN(date.getTime())) {
-            // Check if it's already in DD/MM/YY format
-            if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateValue)) return dateValue;
-
-            // Try to handle "25 Jan, 2025" -> 25/01/25
-            const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-            const parts = dateValue.toLowerCase().replace(',', '').split(' ');
-            if (parts.length === 3) {
-                const day = parts[0].padStart(2, '0');
-                const month = (months.indexOf(parts[1]) + 1).toString().padStart(2, '0');
-                const year = parts[2].slice(-2);
-                if (parseInt(month) > 0) return `${day}/${month}/${year}`;
-            }
-            return dateValue;
+        if (!isNaN(date.getTime())) {
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = months[date.getMonth()];
+            const y = date.getFullYear();
+            return `${d} ${m} ${y}`;
         }
 
-        const d = date.getDate().toString().padStart(2, '0');
-        const m = (date.getMonth() + 1).toString().padStart(2, '0');
-        const y = date.getFullYear().toString().slice(-2);
-        return `${d}/${m}/${y}`;
+        const dmyMatch = dateValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+        if (dmyMatch) {
+            const d = dmyMatch[1].padStart(2, '0');
+            const mIdx = parseInt(dmyMatch[2], 10) - 1;
+            let y = parseInt(dmyMatch[3], 10);
+            if (y < 100) {
+                y = 2000 + y;
+            }
+            const m = months[mIdx] || 'Jan';
+            return `${d} ${m} ${y}`;
+        }
+
+        const parts = dateValue.replace(',', '').split(/\s+/);
+        if (parts.length === 3) {
+            const d = parts[0].padStart(2, '0');
+            const monthStr = parts[1].toLowerCase().slice(0, 3);
+            let y = parseInt(parts[2], 10);
+            if (y < 100) {
+                y = 2000 + y;
+            }
+            const monthIndex = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(monthStr);
+            if (!isNaN(parseInt(d)) && monthIndex !== -1 && !isNaN(y)) {
+                const m = months[monthIndex];
+                return `${d} ${m} ${y}`;
+            }
+        }
+
+        return dateValue;
     } catch (e) {
         return dateValue;
     }
+};
+
+const mapStatus = (statusValue) => {
+    if (!statusValue) return '';
+    const cleanStatus = statusValue.trim();
+    const mapping = {
+        'Cons. Pending': 'Consult pending',
+        'Follow Up': 'Follow-up due',
+        'Rep. Pending': 'Report due',
+        'Meds Prescribed': 'Meds Prescribed',
+        'Payment Link Ready': 'Pay now',
+        'Bill Error': 'Meds Prescribed',
+        'Fare Pending': 'Pay now',
+        'Payment Failed': 'Payment failed',
+        'Meds pending': 'Packing meds',
+        'Meds Sent': 'Meds dispatched',
+        'On Treatment': 'In treatment',
+        'On Hold': 'Treatment paused ',
+        'Dropped': 'Case closed'
+    };
+    return mapping[cleanStatus] || cleanStatus;
 };
 
 const InfoRow = ({ icon: Icon, label, value, highlight = false, isSmall = false }) => (
@@ -110,17 +146,17 @@ const ConsultationInfo = ({ doctor, complaint, consultDate, followUp, status }) 
 
             {/* Title */}
             <h3 style={{ fontSize: '1.25rem', color: 'var(--color-primary-dark)', marginBottom: '16px', position: 'relative', fontWeight: 600 }}>
-                Consultation Info
+                Your care summary
             </h3>
 
             {/* Doctor Info */}
             <div style={{ marginBottom: '20px', position: 'relative' }}>
-                <InfoRow icon={User} label="Assigned Doctor" value={doctor} highlight />
+                <InfoRow icon={User} label="Your doctor" value={doctor} highlight />
             </div>
 
             {/* Chief Complaint */}
             <div style={{ marginBottom: '24px', position: 'relative' }}>
-                <InfoRow icon={Activity} label="Chief Complaint" value={complaint} />
+                <InfoRow icon={Activity} label="Primary concern" value={complaint} />
             </div>
 
             {/* Dates Section - Glass inner panel */}
@@ -139,13 +175,13 @@ const ConsultationInfo = ({ doctor, complaint, consultDate, followUp, status }) 
             }}>
                 <InfoRow
                     icon={Calendar}
-                    label="Consult Date"
+                    label="Consultation date"
                     value={formatDate(consultDate)}
                     isSmall
                 />
                 <InfoRow
                     icon={Calendar}
-                    label="Next Follow-up"
+                    label="Next follow-up"
                     value={formatDate(followUp)}
                     isSmall
                 />
@@ -160,8 +196,8 @@ const ConsultationInfo = ({ doctor, complaint, consultDate, followUp, status }) 
                 borderTop: '1px solid rgba(255,255,255,0.25)',
                 position: 'relative',
             }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--color-secondary)', fontWeight: 500 }}>Current Status</span>
-                <Badge type="primary">{status}</Badge>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-secondary)', fontWeight: 500 }}>Treatment status</span>
+                <Badge type="primary">{mapStatus(status)}</Badge>
             </div>
         </Card>
     );

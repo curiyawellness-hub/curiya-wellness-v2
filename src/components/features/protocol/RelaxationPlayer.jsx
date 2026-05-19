@@ -26,7 +26,7 @@ const EmptyState = ({ onBack }) => (
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'var(--glass-bg)',
+                background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                 backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                 WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                 border: 'var(--glass-border)',
@@ -45,6 +45,11 @@ const EmptyState = ({ onBack }) => (
                     borderRadius: '24px 24px 0 0',
                     zIndex: 1
                 }} />
+
+                {/* Decorative Background Circles */}
+                <div style={{ position: 'absolute', width: '200px', height: '200px', top: '-60px', right: '-60px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.18)', pointerEvents: 'none', zIndex: 1 }} />
+                <div style={{ position: 'absolute', width: '130px', height: '130px', top: '-15px', right: '-15px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.14)', pointerEvents: 'none', zIndex: 1 }} />
+                <div style={{ position: 'absolute', width: '80px', height: '80px', bottom: '-15px', left: '-15px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.18)', pointerEvents: 'none', zIndex: 1 }} />
 
                 <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                     <div style={{
@@ -210,7 +215,7 @@ const RelaxationPlayer = ({ onBack, mockPlaylist = null }) => {
                     alignItems: 'center',
                     position: 'relative',
                     overflow: 'hidden',
-                    background: 'var(--glass-bg)',
+                    background: 'linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%)',
                     backdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))',
                     border: 'var(--glass-border)',
@@ -227,6 +232,11 @@ const RelaxationPlayer = ({ onBack, mockPlaylist = null }) => {
                         borderRadius: '24px 24px 0 0',
                         zIndex: 1
                     }} />
+
+                    {/* Decorative Background Circles */}
+                    <div style={{ position: 'absolute', width: '200px', height: '200px', top: '-60px', right: '-60px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.18)', pointerEvents: 'none', zIndex: 1 }} />
+                    <div style={{ position: 'absolute', width: '130px', height: '130px', top: '-15px', right: '-15px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.14)', pointerEvents: 'none', zIndex: 1 }} />
+                    <div style={{ position: 'absolute', width: '80px', height: '80px', bottom: '-15px', left: '-15px', borderRadius: '50%', border: '1.5px solid rgba(27,67,50,0.18)', pointerEvents: 'none', zIndex: 1 }} />
 
                     {isActuallyLoading ? (
                         <div style={{ width: '100%', padding: '20px', position: 'relative', zIndex: 2 }}>

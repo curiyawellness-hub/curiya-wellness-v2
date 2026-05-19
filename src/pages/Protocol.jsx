@@ -11,22 +11,22 @@ import { fetchFromWebhook } from '../services/patientApi';
 
 const ProtocolGrid = ({ onSelect, flags = {} }) => {
     const items = [
-        { id: 'meds', label: 'Herbals & Supplements', icon: Pill, color: '#e0f2f1' },
-        { id: 'reports', label: 'Lab Reports', icon: FileText, color: '#e8f5e9' },
-        { id: 'diet', label: 'Diet Plan', icon: Utensils, color: '#fbe9e7' },
-        { id: 'yoga', label: 'Yoga Therapy', icon: Zap, color: '#e8f5e9' },
-        { id: 'sleep', label: 'Relaxation & Sleep', icon: Moon, color: '#ede7f6', enabled: flags.audio_enabled !== false }
+        { id: 'meds', label: 'Herbs & Supplements', subline: 'Your Prescribed Formulas', icon: Pill, color: '#e0f2f1' },
+        { id: 'reports', label: 'Lab Reports', subline: 'Track Your Diagnostics', icon: FileText, color: '#e8f5e9' },
+        { id: 'diet', label: 'Nutrition Plan', subline: 'Your Personalised Diet', icon: Utensils, color: '#fbe9e7' },
+        { id: 'yoga', label: 'Yoga Therapy', subline: 'Movement For Healing', icon: Zap, color: '#e8f5e9' },
+        { id: 'sleep', label: 'Sleep & Recovery', subline: 'Rest Is Part Of Healing', icon: Moon, color: '#ede7f6', enabled: flags.audio_enabled !== false }
     ].filter(item => item.enabled !== false);
 
     return (
         <div style={{ paddingBottom: '40px' }}>
             <HeroBanner
-                title="My Protocol"
-                subtitle="Your daily wellness plan"
-                label="WELLNESS REGIMEN"
+                title="Your wellness plan"
+                subtitle="Crafted by Curiya's wellness experts"
+                label="CURATED FOR YOU"
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                 {items.map((item) => (
                     <div key={item.id}>
                         <button
@@ -36,13 +36,14 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '24px',
+                                padding: '20px 24px',
                                 cursor: 'pointer',
                                 textAlign: 'left',
                                 background: 'var(--glass-bg)',
                                 border: 'var(--glass-border)',
                                 borderRadius: 'var(--radius-lg)',
                                 width: '100%',
+                                marginBottom: 0,
                             }}
                         >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -55,9 +56,14 @@ const ProtocolGrid = ({ onSelect, flags = {} }) => {
                                 <item.icon size={22} strokeWidth={1.5} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-primary-dark)' }}>
+                                <span style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-primary-dark)', lineHeight: '1.2' }}>
                                     {item.label}
                                 </span>
+                                {item.subline && (
+                                    <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', opacity: 0.6, marginTop: '2px', fontWeight: 500 }}>
+                                        {item.subline}
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <ChevronRight size={20} color="var(--color-secondary)" opacity={0.5} />

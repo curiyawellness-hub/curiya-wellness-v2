@@ -30,6 +30,22 @@ export const AuthProvider = ({ children }) => {
     const fetchPatientData = useCallback(async (authenticatedUser, isSilent = false) => {
         if (!authenticatedUser?.email) return null;
 
+        if (import.meta.env.DEV && authenticatedUser?.idToken === 'mock-token') {
+            const mockRecord = {
+                patient_id: 'CUR-9894',
+                name: 'Pradeep',
+                doctor: 'Dr. Mathew',
+                chief_complaint: 'Acidity Management',
+                consult_date: '25 Jan, 2025',
+                follow_up_date: '30 Jan, 2026',
+                status: 'Payment Link Ready',
+                quote: "Healing takes time, and asking for help is a courageous step."
+            };
+            setPatientData(mockRecord);
+            setAccessError(null);
+            return mockRecord;
+        }
+
         if (!isSilent) {
             setPatientLoading(true);
         }
@@ -73,6 +89,21 @@ export const AuthProvider = ({ children }) => {
             return false;
         }
 
+        if (import.meta.env.DEV && token === 'mock-token') {
+            const workerUser = {
+                email: 'test@example.com',
+                name: 'Pradeep Mathe',
+                picture: '',
+                id: 'mock-id',
+                idToken: 'mock-token',
+                allowed: true
+            };
+            setUser(workerUser);
+            setIsAuthenticated(true);
+            setAccessError(null);
+            return workerUser;
+        }
+
         try {
             const authResponse = await fetch(`https://solitary-frost-385a.curiyawellness.workers.dev/`, {
                 headers: {
@@ -109,6 +140,10 @@ export const AuthProvider = ({ children }) => {
     const getValidToken = useCallback(async () => {
         if (!user?.idToken) {
             throw new Error('No user session found. Please log in.');
+        }
+
+        if (import.meta.env.DEV && user.idToken === 'mock-token') {
+            return 'mock-token';
         }
 
         try {
@@ -178,7 +213,18 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const checkSession = async () => {
-            const savedUser = localStorage.getItem('curiya_user');
+            let savedUser = localStorage.getItem('curiya_user');
+            if (import.meta.env.DEV && !savedUser) {
+                const mockUser = {
+                    email: 'test@example.com',
+                    name: 'Pradeep Mathe',
+                    picture: '',
+                    id: 'mock-id',
+                    idToken: 'mock-token'
+                };
+                localStorage.setItem('curiya_user', JSON.stringify(mockUser));
+                savedUser = JSON.stringify(mockUser);
+            }
             if (savedUser) {
                 try {
                     const parsedUser = JSON.parse(savedUser);

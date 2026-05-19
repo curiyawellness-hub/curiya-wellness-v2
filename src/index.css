@@ -150,7 +150,7 @@ p {
 
 /* Hero card - consistent with profile saved address styling */
 .hero-card {
-  background: var(--glass-bg);
+  background: linear-gradient(135deg, rgba(149, 213, 178, 0.28) 0%, rgba(183, 228, 199, 0.15) 50%, rgba(255, 255, 255, 0.12) 100%);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: var(--glass-border);
